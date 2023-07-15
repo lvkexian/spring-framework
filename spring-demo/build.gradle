@@ -14,11 +14,11 @@ repositories {
 
 dependencies {
     testImplementation (project(":spring-test"))
+    compile fileTree(dir: 'libs', include: '*.jar')
     testCompile group: 'junit', name: 'junit', version: '4.12'
-//    implementation(project(":spring-context"))
+    implementation(project(":spring-context"))
     implementation(project(":spring-beans"))
     implementation(project(":spring-core"))
-    implementation(project(path: 'lib'))
 }
 
 

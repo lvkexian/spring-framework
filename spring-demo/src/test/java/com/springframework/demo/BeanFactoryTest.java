@@ -7,6 +7,7 @@ import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.xml.XmlBeanFactory;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.demo.domain.MyTestBean;
+import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import static org.junit.Assert.assertEquals;
@@ -20,6 +21,7 @@ import static org.junit.Assert.assertEquals;
  **/
 @SuppressWarnings("deprecation")
 @RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration("classpath:beanFactoryTest.xml")
 public class BeanFactoryTest {
 
 	@Test
