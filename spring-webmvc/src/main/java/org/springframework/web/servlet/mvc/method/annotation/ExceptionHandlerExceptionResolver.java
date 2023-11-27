@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,13 +32,11 @@ import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
-import org.springframework.core.SpringProperties;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.converter.ByteArrayHttpMessageConverter;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.support.AllEncompassingFormHttpMessageConverter;
-import org.springframework.http.converter.xml.SourceHttpMessageConverter;
 import org.springframework.lang.Nullable;
 import org.springframework.ui.ModelMap;
 import org.springframework.web.accept.ContentNegotiationManager;
@@ -58,7 +56,9 @@ import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.View;
 import org.springframework.web.servlet.handler.AbstractHandlerMethodExceptionResolver;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.web.servlet.resource.ResourceHttpRequestHandler;
 import org.springframework.web.servlet.support.RequestContextUtils;
+import org.springframework.web.util.DisconnectedClientHelper;
 
 /**
  * An {@link AbstractHandlerMethodExceptionResolver} that resolves exceptions
@@ -78,11 +78,14 @@ public class ExceptionHandlerExceptionResolver extends AbstractHandlerMethodExce
 		implements ApplicationContextAware, InitializingBean {
 
 	/**
-	 * Boolean flag controlled by a {@code spring.xml.ignore} system property that instructs Spring to
-	 * ignore XML, i.e. to not initialize the XML-related infrastructure.
-	 * <p>The default is "false".
+	 * Log category to use for network failure after a client has gone away.
+	 * @see DisconnectedClientHelper
 	 */
-	private static final boolean shouldIgnoreXml = SpringProperties.getFlag("spring.xml.ignore");
+	private static final String DISCONNECTED_CLIENT_LOG_CATEGORY =
+			"org.springframework.web.servlet.mvc.method.annotation.DisconnectedClient";
+
+	private static final DisconnectedClientHelper disconnectedClientHelper =
+			new DisconnectedClientHelper(DISCONNECTED_CLIENT_LOG_CATEGORY);
 
 
 	@Nullable
@@ -97,7 +100,7 @@ public class ExceptionHandlerExceptionResolver extends AbstractHandlerMethodExce
 	@Nullable
 	private HandlerMethodReturnValueHandlerComposite returnValueHandlers;
 
-	private List<HttpMessageConverter<?>> messageConverters;
+	private final List<HttpMessageConverter<?>> messageConverters = new ArrayList<>();
 
 	private ContentNegotiationManager contentNegotiationManager = new ContentNegotiationManager();
 
@@ -111,22 +114,6 @@ public class ExceptionHandlerExceptionResolver extends AbstractHandlerMethodExce
 
 	private final Map<ControllerAdviceBean, ExceptionHandlerMethodResolver> exceptionHandlerAdviceCache =
 			new LinkedHashMap<>();
-
-
-	public ExceptionHandlerExceptionResolver() {
-		this.messageConverters = new ArrayList<>();
-		this.messageConverters.add(new ByteArrayHttpMessageConverter());
-		this.messageConverters.add(new StringHttpMessageConverter());
-		if(!shouldIgnoreXml) {
-			try {
-				this.messageConverters.add(new SourceHttpMessageConverter<>());
-			}
-			catch (Error err) {
-				// Ignore when no TransformerFactory implementation is available
-			}
-		}
-		this.messageConverters.add(new AllEncompassingFormHttpMessageConverter());
-	}
 
 
 	/**
@@ -214,7 +201,8 @@ public class ExceptionHandlerExceptionResolver extends AbstractHandlerMethodExce
 	 * <p>These converters are used to convert from and to HTTP requests and responses.
 	 */
 	public void setMessageConverters(List<HttpMessageConverter<?>> messageConverters) {
-		this.messageConverters = messageConverters;
+		this.messageConverters.clear();
+		this.messageConverters.addAll(messageConverters);
 	}
 
 	/**
@@ -266,6 +254,7 @@ public class ExceptionHandlerExceptionResolver extends AbstractHandlerMethodExce
 	public void afterPropertiesSet() {
 		// Do this first, it may add ResponseBodyAdvice beans
 		initExceptionHandlerAdviceCache();
+		initMessageConverters();
 
 		if (this.argumentResolvers == null) {
 			List<HandlerMethodArgumentResolver> resolvers = getDefaultArgumentResolvers();
@@ -275,6 +264,15 @@ public class ExceptionHandlerExceptionResolver extends AbstractHandlerMethodExce
 			List<HandlerMethodReturnValueHandler> handlers = getDefaultReturnValueHandlers();
 			this.returnValueHandlers = new HandlerMethodReturnValueHandlerComposite().addHandlers(handlers);
 		}
+	}
+
+	private void initMessageConverters() {
+		if (!this.messageConverters.isEmpty()) {
+			return;
+		}
+		this.messageConverters.add(new ByteArrayHttpMessageConverter());
+		this.messageConverters.add(new StringHttpMessageConverter());
+		this.messageConverters.add(new AllEncompassingFormHttpMessageConverter());
 	}
 
 	private void initExceptionHandlerAdviceCache() {
@@ -387,6 +385,12 @@ public class ExceptionHandlerExceptionResolver extends AbstractHandlerMethodExce
 		return !this.exceptionHandlerAdviceCache.isEmpty();
 	}
 
+	@Override
+	protected boolean shouldApplyTo(HttpServletRequest request, @Nullable Object handler) {
+		return (handler instanceof ResourceHttpRequestHandler ?
+				hasGlobalExceptionHandlers() : super.shouldApplyTo(request, handler));
+	}
+
 	/**
 	 * Find an {@code @ExceptionHandler} method and invoke it to handle the raised exception.
 	 */
@@ -428,10 +432,12 @@ public class ExceptionHandlerExceptionResolver extends AbstractHandlerMethodExce
 			exceptionHandlerMethod.invokeAndHandle(webRequest, mavContainer, arguments);
 		}
 		catch (Throwable invocationEx) {
-			// Any other than the original exception (or a cause) is unintended here,
-			// probably an accident (e.g. failed assertion or the like).
-			if (!exceptions.contains(invocationEx) && logger.isWarnEnabled()) {
-				logger.warn("Failure in @ExceptionHandler " + exceptionHandlerMethod, invocationEx);
+			if (!disconnectedClientHelper.checkAndLogClientDisconnectedException(invocationEx)) {
+				// Any other than the original exception (or a cause) is unintended here,
+				// probably an accident (e.g. failed assertion or the like).
+				if (!exceptions.contains(invocationEx) && logger.isWarnEnabled()) {
+					logger.warn("Failure in @ExceptionHandler " + exceptionHandlerMethod, invocationEx);
+				}
 			}
 			// Continue with default processing of the original exception...
 			return null;
@@ -448,8 +454,8 @@ public class ExceptionHandlerExceptionResolver extends AbstractHandlerMethodExce
 			if (!mavContainer.isViewReference()) {
 				mav.setView((View) mavContainer.getView());
 			}
-			if (model instanceof RedirectAttributes) {
-				Map<String, ?> flashAttributes = ((RedirectAttributes) model).getFlashAttributes();
+			if (model instanceof RedirectAttributes redirectAttributes) {
+				Map<String, ?> flashAttributes = redirectAttributes.getFlashAttributes();
 				RequestContextUtils.getOutputFlashMap(request).putAll(flashAttributes);
 			}
 			return mav;

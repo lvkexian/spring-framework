@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,9 @@ package org.springframework.web.service.invoker;
 
 import java.net.URI;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import org.springframework.lang.Nullable;
 import org.springframework.web.service.annotation.GetExchange;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,19 +31,12 @@ import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
  *
  * @author Rossen Stoyanchev
  */
-public class UrlArgumentResolverTests {
+class UrlArgumentResolverTests {
 
-	private final TestHttpClientAdapter client = new TestHttpClientAdapter();
+	private final TestExchangeAdapter client = new TestExchangeAdapter();
 
-	private Service service;
-
-
-	@BeforeEach
-	void setUp() throws Exception {
-		HttpServiceProxyFactory proxyFactory = new HttpServiceProxyFactory(this.client);
-		proxyFactory.afterPropertiesSet();
-		this.service = proxyFactory.createClient(Service.class);
-	}
+	private final Service service =
+			HttpServiceProxyFactory.builderFor(this.client).build().createClient(Service.class);
 
 
 	@Test
@@ -52,7 +45,7 @@ public class UrlArgumentResolverTests {
 		this.service.execute(dynamicUrl);
 
 		assertThat(getRequestValues().getUri()).isEqualTo(dynamicUrl);
-		assertThat(getRequestValues().getUriTemplate()).isNull();
+		assertThat(getRequestValues().getUriTemplate()).isEqualTo("/path");
 	}
 
 	@Test
@@ -68,7 +61,9 @@ public class UrlArgumentResolverTests {
 	@Test
 	void ignoreNull() {
 		this.service.execute(null);
+
 		assertThat(getRequestValues().getUri()).isNull();
+		assertThat(getRequestValues().getUriTemplate()).isEqualTo("/path");
 	}
 
 	private HttpRequestValues getRequestValues() {
@@ -79,7 +74,7 @@ public class UrlArgumentResolverTests {
 	private interface Service {
 
 		@GetExchange("/path")
-		void execute(URI uri);
+		void execute(@Nullable URI uri);
 
 		@GetExchange
 		void executeNotUri(String other);

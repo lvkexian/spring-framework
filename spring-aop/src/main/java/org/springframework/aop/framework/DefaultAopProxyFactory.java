@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import java.io.Serializable;
 import java.lang.reflect.Proxy;
 
 import org.springframework.aop.SpringProxy;
-import org.springframework.core.NativeDetector;
 import org.springframework.util.ClassUtils;
 
 /**
@@ -49,13 +48,18 @@ import org.springframework.util.ClassUtils;
  */
 public class DefaultAopProxyFactory implements AopProxyFactory, Serializable {
 
+	/**
+	 * Singleton instance of this class.
+	 * @since 6.0.10
+	 */
+	public static final DefaultAopProxyFactory INSTANCE = new DefaultAopProxyFactory();
+
 	private static final long serialVersionUID = 7930414337282325166L;
 
 
 	@Override
 	public AopProxy createAopProxy(AdvisedSupport config) throws AopConfigException {
-		if (!NativeDetector.inNativeImage() &&
-				(config.isOptimize() || config.isProxyTargetClass() || hasNoUserSuppliedProxyInterfaces(config))) {
+		if (config.isOptimize() || config.isProxyTargetClass() || hasNoUserSuppliedProxyInterfaces(config)) {
 			Class<?> targetClass = config.getTargetClass();
 			if (targetClass == null) {
 				throw new AopConfigException("TargetSource cannot determine target class: " +

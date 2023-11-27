@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,12 +18,12 @@ package org.springframework.web.service.invoker;
 
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Single;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.lang.Nullable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.service.annotation.GetExchange;
 
@@ -33,22 +33,14 @@ import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 /**
  * Unit tests for {@link RequestBodyArgumentResolver}.
- *
  * @author Rossen Stoyanchev
  */
-public class RequestBodyArgumentResolverTests {
+class RequestBodyArgumentResolverTests {
 
-	private final TestHttpClientAdapter client = new TestHttpClientAdapter();
+	private final TestReactorExchangeAdapter client = new TestReactorExchangeAdapter();
 
-	private Service service;
-
-
-	@BeforeEach
-	void setUp() throws Exception {
-		HttpServiceProxyFactory proxyFactory = new HttpServiceProxyFactory(this.client);
-		proxyFactory.afterPropertiesSet();
-		this.service = proxyFactory.createClient(Service.class);
-	}
+	private final Service service =
+			HttpServiceProxyFactory.builderFor(this.client).build().createClient(Service.class);
 
 
 	@Test
@@ -56,8 +48,8 @@ public class RequestBodyArgumentResolverTests {
 		String body = "bodyValue";
 		this.service.execute(body);
 
-		assertThat(getRequestValues().getBodyValue()).isEqualTo(body);
-		assertThat(getRequestValues().getBody()).isNull();
+		assertThat(getBodyValue()).isEqualTo(body);
+		assertThat(getPublisherBody()).isNull();
 	}
 
 	@Test
@@ -65,9 +57,9 @@ public class RequestBodyArgumentResolverTests {
 		Mono<String> bodyMono = Mono.just("bodyValue");
 		this.service.executeMono(bodyMono);
 
-		assertThat(getRequestValues().getBodyValue()).isNull();
-		assertThat(getRequestValues().getBody()).isSameAs(bodyMono);
-		assertThat(getRequestValues().getBodyElementType()).isEqualTo(new ParameterizedTypeReference<String>() {});
+		assertThat(getBodyValue()).isNull();
+		assertThat(getPublisherBody()).isSameAs(bodyMono);
+		assertThat(getBodyElementType()).isEqualTo(new ParameterizedTypeReference<String>() {});
 	}
 
 	@Test
@@ -76,10 +68,10 @@ public class RequestBodyArgumentResolverTests {
 		String bodyValue = "bodyValue";
 		this.service.executeSingle(Single.just(bodyValue));
 
-		assertThat(getRequestValues().getBodyValue()).isNull();
-		assertThat(getRequestValues().getBodyElementType()).isEqualTo(new ParameterizedTypeReference<String>() {});
+		assertThat(getBodyValue()).isNull();
+		assertThat(getBodyElementType()).isEqualTo(new ParameterizedTypeReference<String>() {});
 
-		Publisher<?> body = getRequestValues().getBody();
+		Publisher<?> body = getPublisherBody();
 		assertThat(body).isNotNull();
 		assertThat(((Mono<String>) body).block()).isEqualTo(bodyValue);
 	}
@@ -112,17 +104,32 @@ public class RequestBodyArgumentResolverTests {
 	void ignoreNull() {
 		this.service.execute(null);
 
-		assertThat(getRequestValues().getBodyValue()).isNull();
-		assertThat(getRequestValues().getBody()).isNull();
+		assertThat(getBodyValue()).isNull();
+		assertThat(getPublisherBody()).isNull();
 
 		this.service.executeMono(null);
 
-		assertThat(getRequestValues().getBodyValue()).isNull();
-		assertThat(getRequestValues().getBody()).isNull();
+		assertThat(getBodyValue()).isNull();
+		assertThat(getPublisherBody()).isNull();
 	}
 
-	private HttpRequestValues getRequestValues() {
-		return this.client.getRequestValues();
+	@Nullable
+	private Object getBodyValue() {
+		return getReactiveRequestValues().getBodyValue();
+	}
+
+	@Nullable
+	private Publisher<?> getPublisherBody() {
+		return getReactiveRequestValues().getBodyPublisher();
+	}
+
+	@Nullable
+	private ParameterizedTypeReference<?> getBodyElementType() {
+		return getReactiveRequestValues().getBodyPublisherElementType();
+	}
+
+	private ReactiveHttpRequestValues getReactiveRequestValues() {
+		return (ReactiveHttpRequestValues) this.client.getRequestValues();
 	}
 
 

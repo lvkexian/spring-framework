@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -86,6 +86,8 @@ class ClassUtilsTests {
 	void forNameWithNestedType() throws ClassNotFoundException {
 		assertThat(ClassUtils.forName("org.springframework.util.ClassUtilsTests$NestedClass", classLoader)).isEqualTo(NestedClass.class);
 		assertThat(ClassUtils.forName("org.springframework.util.ClassUtilsTests.NestedClass", classLoader)).isEqualTo(NestedClass.class);
+		assertThat(ClassUtils.forName("a.ClassHavingNestedClass$NestedClass", classLoader)).isEqualTo(a.ClassHavingNestedClass.NestedClass.class);
+		assertThat(ClassUtils.forName("a.ClassHavingNestedClass.NestedClass", classLoader)).isEqualTo(a.ClassHavingNestedClass.NestedClass.class);
 	}
 
 	@Test
@@ -334,7 +336,7 @@ class ClassUtilsTests {
 	void getAllInterfaces() {
 		DerivedTestObject testBean = new DerivedTestObject();
 		List<Class<?>> ifcs = Arrays.asList(ClassUtils.getAllInterfaces(testBean));
-		assertThat(ifcs.size()).as("Correct number of interfaces").isEqualTo(4);
+		assertThat(ifcs).as("Correct number of interfaces").hasSize(4);
 		assertThat(ifcs.contains(Serializable.class)).as("Contains Serializable").isTrue();
 		assertThat(ifcs.contains(ITestObject.class)).as("Contains ITestBean").isTrue();
 		assertThat(ifcs.contains(ITestInterface.class)).as("Contains IOther").isTrue();
@@ -389,6 +391,35 @@ class ClassUtilsTests {
 		assertThat(ClassUtils.determineCommonAncestor(ArrayList.class, List.class)).isEqualTo(List.class);
 		assertThat(ClassUtils.determineCommonAncestor(List.class, String.class)).isNull();
 		assertThat(ClassUtils.determineCommonAncestor(String.class, List.class)).isNull();
+	}
+
+	@Test
+	void getMostSpecificMethod() throws NoSuchMethodException {
+		Method defaultPrintMethod = ClassUtils.getMethod(MethodsInterface.class, "defaultPrint");
+		assertThat(ClassUtils.getMostSpecificMethod(defaultPrintMethod, MethodsInterfaceImplementation.class))
+				.isEqualTo(defaultPrintMethod);
+		assertThat(ClassUtils.getMostSpecificMethod(defaultPrintMethod, SubMethodsInterfaceImplementation.class))
+				.isEqualTo(defaultPrintMethod);
+
+		Method printMethod = ClassUtils.getMethod(MethodsInterface.class, "print", String.class);
+		assertThat(ClassUtils.getMostSpecificMethod(printMethod, MethodsInterfaceImplementation.class))
+				.isNotEqualTo(printMethod);
+		assertThat(ClassUtils.getMostSpecificMethod(printMethod, MethodsInterfaceImplementation.class))
+				.isEqualTo(ClassUtils.getMethod(MethodsInterfaceImplementation.class, "print", String.class));
+		assertThat(ClassUtils.getMostSpecificMethod(printMethod, SubMethodsInterfaceImplementation.class))
+				.isEqualTo(ClassUtils.getMethod(MethodsInterfaceImplementation.class, "print", String.class));
+
+		Method protectedPrintMethod = MethodsInterfaceImplementation.class.getDeclaredMethod("protectedPrint");
+		assertThat(ClassUtils.getMostSpecificMethod(protectedPrintMethod, MethodsInterfaceImplementation.class))
+				.isEqualTo(protectedPrintMethod);
+		assertThat(ClassUtils.getMostSpecificMethod(protectedPrintMethod, SubMethodsInterfaceImplementation.class))
+				.isEqualTo(SubMethodsInterfaceImplementation.class.getDeclaredMethod("protectedPrint"));
+
+		Method packageAccessiblePrintMethod = MethodsInterfaceImplementation.class.getDeclaredMethod("packageAccessiblePrint");
+		assertThat(ClassUtils.getMostSpecificMethod(packageAccessiblePrintMethod, MethodsInterfaceImplementation.class))
+				.isEqualTo(packageAccessiblePrintMethod);
+		assertThat(ClassUtils.getMostSpecificMethod(packageAccessiblePrintMethod, SubMethodsInterfaceImplementation.class))
+				.isEqualTo(ClassUtils.getMethod(SubMethodsInterfaceImplementation.class, "packageAccessiblePrint"));
 	}
 
 	@ParameterizedTest
@@ -556,6 +587,47 @@ class ClassUtilsTests {
 		public String get() {
 			return "fake lambda";
 		}
+	}
+
+	@SuppressWarnings("unused")
+	private interface MethodsInterface {
+
+		default void defaultPrint() {
+
+		}
+
+		void print(String messages);
+	}
+
+	@SuppressWarnings("unused")
+	private class MethodsInterfaceImplementation implements MethodsInterface {
+
+		@Override
+		public void print(String message) {
+
+		}
+
+		protected void protectedPrint() {
+
+		}
+
+		void packageAccessiblePrint() {
+
+		}
+	}
+
+	@SuppressWarnings("unused")
+	private class SubMethodsInterfaceImplementation extends MethodsInterfaceImplementation {
+
+		@Override
+		protected void protectedPrint() {
+
+		}
+
+		public void packageAccessiblePrint() {
+
+		}
+
 	}
 
 }

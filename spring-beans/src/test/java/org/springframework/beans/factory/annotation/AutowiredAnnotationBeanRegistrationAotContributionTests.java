@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,42 +16,42 @@
 
 package org.springframework.beans.factory.annotation;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
 import javax.lang.model.element.Modifier;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import org.springframework.aot.generate.DefaultGenerationContext;
-import org.springframework.aot.generate.GenerationContext;
-import org.springframework.aot.generate.InMemoryGeneratedFiles;
-import org.springframework.aot.generate.MethodGenerator;
 import org.springframework.aot.generate.MethodReference;
-import org.springframework.aot.test.generator.compile.CompileWithTargetClassAccess;
-import org.springframework.aot.test.generator.compile.Compiled;
-import org.springframework.aot.test.generator.compile.TestCompiler;
+import org.springframework.aot.generate.MethodReference.ArgumentCodeGenerator;
+import org.springframework.aot.hint.predicate.RuntimeHintsPredicates;
+import org.springframework.aot.test.generate.TestGenerationContext;
 import org.springframework.beans.factory.aot.BeanRegistrationAotContribution;
-import org.springframework.beans.factory.aot.BeanRegistrationCode;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.beans.factory.support.RegisteredBean;
 import org.springframework.beans.factory.support.RootBeanDefinition;
+import org.springframework.beans.testfixture.beans.factory.annotation.PackagePrivateFieldInjectionSample;
+import org.springframework.beans.testfixture.beans.factory.annotation.PackagePrivateMethodInjectionSample;
+import org.springframework.beans.testfixture.beans.factory.annotation.PrivateFieldInjectionSample;
+import org.springframework.beans.testfixture.beans.factory.annotation.PrivateMethodInjectionSample;
+import org.springframework.beans.testfixture.beans.factory.annotation.subpkg.PackagePrivateFieldInjectionFromParentSample;
+import org.springframework.beans.testfixture.beans.factory.annotation.subpkg.PackagePrivateMethodInjectionFromParentSample;
+import org.springframework.beans.testfixture.beans.factory.aot.MockBeanRegistrationCode;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.StandardEnvironment;
-import org.springframework.javapoet.ClassName;
+import org.springframework.core.test.tools.CompileWithForkedClassLoader;
+import org.springframework.core.test.tools.Compiled;
+import org.springframework.core.test.tools.SourceFile;
+import org.springframework.core.test.tools.TestCompiler;
 import org.springframework.javapoet.CodeBlock;
-import org.springframework.javapoet.JavaFile;
 import org.springframework.javapoet.MethodSpec;
 import org.springframework.javapoet.ParameterizedTypeName;
-import org.springframework.javapoet.TypeSpec;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Tests for {@link AutowiredAnnotationBeanRegistrationAotContribution}.
+ * Tests for {@link AutowiredAnnotationBeanPostProcessor} for AOT contributions.
  *
  * @author Phillip Webb
  * @author Stephane Nicoll
@@ -59,21 +59,23 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class AutowiredAnnotationBeanRegistrationAotContributionTests {
 
-	private InMemoryGeneratedFiles generatedFiles;
+	private final TestGenerationContext generationContext;
 
-	private GenerationContext generationContext;
+	private final MockBeanRegistrationCode beanRegistrationCode;
 
-	private MockBeanRegistrationCode beanRegistrationCode;
+	private final DefaultListableBeanFactory beanFactory;
 
-	private DefaultListableBeanFactory beanFactory;
+	private final AutowiredAnnotationBeanPostProcessor beanPostProcessor;
 
-	@BeforeEach
-	void setup() {
-		this.generatedFiles = new InMemoryGeneratedFiles();
-		this.generationContext = new DefaultGenerationContext(this.generatedFiles);
-		this.beanRegistrationCode = new MockBeanRegistrationCode();
+
+	AutowiredAnnotationBeanRegistrationAotContributionTests() {
+		this.generationContext = new TestGenerationContext();
+		this.beanRegistrationCode = new MockBeanRegistrationCode(this.generationContext);
 		this.beanFactory = new DefaultListableBeanFactory();
+		this.beanPostProcessor = new AutowiredAnnotationBeanPostProcessor();
+		this.beanPostProcessor.setBeanFactory(this.beanFactory);
 	}
+
 
 	@Test
 	void contributeWhenPrivateFieldInjectionInjectsUsingReflection() {
@@ -81,28 +83,53 @@ class AutowiredAnnotationBeanRegistrationAotContributionTests {
 		this.beanFactory.registerSingleton("environment", environment);
 		RegisteredBean registeredBean = getAndApplyContribution(
 				PrivateFieldInjectionSample.class);
-		testCompiledResult(registeredBean, (postProcessor, compiled) -> {
+		assertThat(RuntimeHintsPredicates.reflection()
+				.onField(PrivateFieldInjectionSample.class, "environment"))
+				.accepts(this.generationContext.getRuntimeHints());
+		compile(registeredBean, (postProcessor, compiled) -> {
 			PrivateFieldInjectionSample instance = new PrivateFieldInjectionSample();
 			postProcessor.apply(registeredBean, instance);
 			assertThat(instance).extracting("environment").isSameAs(environment);
-			assertThat(compiled.getSourceFileFromPackage(getClass().getPackageName()))
+			assertThat(getSourceFile(compiled, PrivateFieldInjectionSample.class))
 					.contains("resolveAndSet(");
 		});
 	}
 
 	@Test
-	@CompileWithTargetClassAccess(classes = PackagePrivateFieldInjectionSample.class)
+	@CompileWithForkedClassLoader
 	void contributeWhenPackagePrivateFieldInjectionInjectsUsingConsumer() {
 		Environment environment = new StandardEnvironment();
 		this.beanFactory.registerSingleton("environment", environment);
 		RegisteredBean registeredBean = getAndApplyContribution(
 				PackagePrivateFieldInjectionSample.class);
-		testCompiledResult(registeredBean, (postProcessor, compiled) -> {
+		assertThat(RuntimeHintsPredicates.reflection()
+				.onField(PackagePrivateFieldInjectionSample.class, "environment"))
+				.accepts(this.generationContext.getRuntimeHints());
+		compile(registeredBean, (postProcessor, compiled) -> {
 			PackagePrivateFieldInjectionSample instance = new PackagePrivateFieldInjectionSample();
 			postProcessor.apply(registeredBean, instance);
 			assertThat(instance).extracting("environment").isSameAs(environment);
-			assertThat(compiled.getSourceFileFromPackage(getClass().getPackageName()))
+			assertThat(getSourceFile(compiled, PackagePrivateFieldInjectionSample.class))
 					.contains("instance.environment =");
+		});
+	}
+
+	@Test
+	@CompileWithForkedClassLoader
+	void contributeWhenPackagePrivateFieldInjectionOnParentClassInjectsUsingReflection() {
+		Environment environment = new StandardEnvironment();
+		this.beanFactory.registerSingleton("environment", environment);
+		RegisteredBean registeredBean = getAndApplyContribution(
+				PackagePrivateFieldInjectionFromParentSample.class);
+		assertThat(RuntimeHintsPredicates.reflection()
+				.onField(PackagePrivateFieldInjectionSample.class, "environment"))
+				.accepts(this.generationContext.getRuntimeHints());
+		compile(registeredBean, (postProcessor, compiled) -> {
+			PackagePrivateFieldInjectionFromParentSample instance = new PackagePrivateFieldInjectionFromParentSample();
+			postProcessor.apply(registeredBean, instance);
+			assertThat(instance).extracting("environment").isSameAs(environment);
+			assertThat(getSourceFile(compiled, PackagePrivateFieldInjectionFromParentSample.class))
+					.contains("resolveAndSet");
 		});
 	}
 
@@ -112,35 +139,70 @@ class AutowiredAnnotationBeanRegistrationAotContributionTests {
 		this.beanFactory.registerSingleton("environment", environment);
 		RegisteredBean registeredBean = getAndApplyContribution(
 				PrivateMethodInjectionSample.class);
-		testCompiledResult(registeredBean, (postProcessor, compiled) -> {
+		assertThat(RuntimeHintsPredicates.reflection()
+				.onMethod(PrivateMethodInjectionSample.class, "setTestBean").invoke())
+				.accepts(this.generationContext.getRuntimeHints());
+		compile(registeredBean, (postProcessor, compiled) -> {
 			PrivateMethodInjectionSample instance = new PrivateMethodInjectionSample();
 			postProcessor.apply(registeredBean, instance);
 			assertThat(instance).extracting("environment").isSameAs(environment);
-			assertThat(compiled.getSourceFileFromPackage(getClass().getPackageName()))
+			assertThat(getSourceFile(compiled, PrivateMethodInjectionSample.class))
 					.contains("resolveAndInvoke(");
 		});
 	}
 
 	@Test
-	@CompileWithTargetClassAccess(classes = PackagePrivateMethodInjectionSample.class)
+	@CompileWithForkedClassLoader
 	void contributeWhenPackagePrivateMethodInjectionInjectsUsingConsumer() {
 		Environment environment = new StandardEnvironment();
 		this.beanFactory.registerSingleton("environment", environment);
 		RegisteredBean registeredBean = getAndApplyContribution(
 				PackagePrivateMethodInjectionSample.class);
-		testCompiledResult(registeredBean, (postProcessor, compiled) -> {
+		assertThat(RuntimeHintsPredicates.reflection()
+				.onMethod(PackagePrivateMethodInjectionSample.class, "setTestBean").introspect())
+				.accepts(this.generationContext.getRuntimeHints());
+		compile(registeredBean, (postProcessor, compiled) -> {
 			PackagePrivateMethodInjectionSample instance = new PackagePrivateMethodInjectionSample();
 			postProcessor.apply(registeredBean, instance);
-			assertThat(instance).extracting("environment").isSameAs(environment);
-			assertThat(compiled.getSourceFileFromPackage(getClass().getPackageName()))
+			assertThat(instance.environment).isSameAs(environment);
+			assertThat(getSourceFile(compiled, PackagePrivateMethodInjectionSample.class))
 					.contains("args -> instance.setTestBean(");
 		});
 	}
 
+	@Test
+	@CompileWithForkedClassLoader
+	void contributeWhenPackagePrivateMethodInjectionOnParentClassInjectsUsingReflection() {
+		Environment environment = new StandardEnvironment();
+		this.beanFactory.registerSingleton("environment", environment);
+		RegisteredBean registeredBean = getAndApplyContribution(
+				PackagePrivateMethodInjectionFromParentSample.class);
+		assertThat(RuntimeHintsPredicates.reflection()
+				.onMethod(PackagePrivateMethodInjectionSample.class, "setTestBean"))
+				.accepts(this.generationContext.getRuntimeHints());
+		compile(registeredBean, (postProcessor, compiled) -> {
+			PackagePrivateMethodInjectionFromParentSample instance = new PackagePrivateMethodInjectionFromParentSample();
+			postProcessor.apply(registeredBean, instance);
+			assertThat(instance.environment).isSameAs(environment);
+			assertThat(getSourceFile(compiled, PackagePrivateMethodInjectionFromParentSample.class))
+					.contains("resolveAndInvoke(");
+		});
+	}
+
+	@Test
+	void contributeWhenMethodInjectionHasMatchingPropertyValue() {
+		RootBeanDefinition beanDefinition = new RootBeanDefinition(InjectionBean.class);
+		beanDefinition.getPropertyValues().addPropertyValue("counter", 42);
+		this.beanFactory.registerBeanDefinition("test", beanDefinition);
+		BeanRegistrationAotContribution contribution = this.beanPostProcessor
+				.processAheadOfTime(RegisteredBean.of(this.beanFactory, "test"));
+		assertThat(contribution).isNull();
+	}
+
 	private RegisteredBean getAndApplyContribution(Class<?> beanClass) {
 		RegisteredBean registeredBean = registerBean(beanClass);
-		BeanRegistrationAotContribution contribution = new AutowiredAnnotationBeanPostProcessor()
-				.processAheadOfTime(registeredBean);
+		BeanRegistrationAotContribution contribution = this.beanPostProcessor.processAheadOfTime(registeredBean);
+		assertThat(contribution).isNotNull();
 		contribution.applyTo(this.generationContext, this.beanRegistrationCode);
 		return registeredBean;
 	}
@@ -152,49 +214,42 @@ class AutowiredAnnotationBeanRegistrationAotContributionTests {
 		return RegisteredBean.of(this.beanFactory, beanName);
 	}
 
+	private static SourceFile getSourceFile(Compiled compiled, Class<?> sample) {
+		return compiled.getSourceFileFromPackage(sample.getPackageName());
+	}
+
 	@SuppressWarnings("unchecked")
-	private void testCompiledResult(RegisteredBean registeredBean,
+	private void compile(RegisteredBean registeredBean,
 			BiConsumer<BiFunction<RegisteredBean, Object, Object>, Compiled> result) {
-		JavaFile javaFile = createJavaFile(registeredBean.getBeanClass());
-		TestCompiler.forSystem().withFiles(this.generatedFiles).compile(javaFile::writeTo,
-				compiled -> result.accept(compiled.getInstance(BiFunction.class),
-						compiled));
+		Class<?> target = registeredBean.getBeanClass();
+		MethodReference methodReference = this.beanRegistrationCode.getInstancePostProcessors().get(0);
+		this.beanRegistrationCode.getTypeBuilder().set(type -> {
+			CodeBlock methodInvocation = methodReference.toInvokeCodeBlock(
+					ArgumentCodeGenerator.of(RegisteredBean.class, "registeredBean").and(target, "instance"),
+					this.beanRegistrationCode.getClassName());
+			type.addModifiers(Modifier.PUBLIC);
+			type.addSuperinterface(ParameterizedTypeName.get(BiFunction.class, RegisteredBean.class, target, target));
+			type.addMethod(MethodSpec.methodBuilder("apply")
+					.addModifiers(Modifier.PUBLIC)
+					.addParameter(RegisteredBean.class, "registeredBean")
+					.addParameter(target, "instance").returns(target)
+					.addStatement("return $L", methodInvocation)
+					.build());
+
+		});
+		this.generationContext.writeGeneratedContent();
+		TestCompiler.forSystem().with(this.generationContext).compile(compiled ->
+				result.accept(compiled.getInstance(BiFunction.class), compiled));
 	}
 
-	private JavaFile createJavaFile(Class<?> target) {
-		MethodReference methodReference = this.beanRegistrationCode.instancePostProcessors
-				.get(0);
-		TypeSpec.Builder builder = TypeSpec.classBuilder("TestPostProcessor");
-		builder.addModifiers(Modifier.PUBLIC);
-		builder.addSuperinterface(ParameterizedTypeName.get(BiFunction.class,
-				RegisteredBean.class, target, target));
-		builder.addMethod(MethodSpec.methodBuilder("apply").addModifiers(Modifier.PUBLIC)
-				.addParameter(RegisteredBean.class, "registeredBean")
-				.addParameter(target, "instance").returns(target)
-				.addStatement("return $L", methodReference.toInvokeCodeBlock(
-						CodeBlock.of("registeredBean"), CodeBlock.of("instance")))
-				.build());
-		return JavaFile.builder("__", builder.build()).build();
-	}
+	static class InjectionBean {
 
+		@SuppressWarnings("unused")
+		private Integer counter;
 
-	private static class MockBeanRegistrationCode implements BeanRegistrationCode {
-
-		private final List<MethodReference> instancePostProcessors = new ArrayList<>();
-
-		@Override
-		public ClassName getClassName() {
-			return null;
-		}
-
-		@Override
-		public MethodGenerator getMethodGenerator() {
-			return null;
-		}
-
-		@Override
-		public void addInstancePostProcessor(MethodReference methodReference) {
-			this.instancePostProcessors.add(methodReference);
+		@Autowired
+		public void setCounter(Integer counter) {
+			this.counter = counter;
 		}
 
 	}

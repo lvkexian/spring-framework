@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,13 @@
 
 package org.springframework.web.service.invoker;
 
-import org.reactivestreams.Publisher;
-
 import org.springframework.core.MethodParameter;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.ReactiveAdapter;
 import org.springframework.core.ReactiveAdapterRegistry;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
+import org.springframework.util.ClassUtils;
 import org.springframework.web.bind.annotation.RequestBody;
 
 /**
@@ -35,12 +34,28 @@ import org.springframework.web.bind.annotation.RequestBody;
  */
 public class RequestBodyArgumentResolver implements HttpServiceArgumentResolver {
 
+	private static final boolean REACTOR_PRESENT =
+			ClassUtils.isPresent("reactor.core.publisher.Mono", RequestBodyArgumentResolver.class.getClassLoader());
+
+
+	@Nullable
 	private final ReactiveAdapterRegistry reactiveAdapterRegistry;
 
 
-	public RequestBodyArgumentResolver(ReactiveAdapterRegistry reactiveAdapterRegistry) {
-		Assert.notNull(reactiveAdapterRegistry, "ReactiveAdapterRegistry is required");
-		this.reactiveAdapterRegistry = reactiveAdapterRegistry;
+	/**
+	 * Constructor with a {@link HttpExchangeAdapter}, for access to config settings.
+	 * @since 6.1
+	 */
+	public RequestBodyArgumentResolver(HttpExchangeAdapter exchangeAdapter) {
+		if (REACTOR_PRESENT) {
+			this.reactiveAdapterRegistry =
+					(exchangeAdapter instanceof ReactorHttpExchangeAdapter reactorAdapter ?
+							reactorAdapter.getReactiveAdapterRegistry() :
+							ReactiveAdapterRegistry.getSharedInstance());
+		}
+		else {
+			this.reactiveAdapterRegistry = null;
+		}
 	}
 
 
@@ -54,32 +69,37 @@ public class RequestBodyArgumentResolver implements HttpServiceArgumentResolver 
 		}
 
 		if (argument != null) {
-			ReactiveAdapter reactiveAdapter = this.reactiveAdapterRegistry.getAdapter(parameter.getParameterType());
-			if (reactiveAdapter != null) {
-				setBody(argument, parameter, reactiveAdapter, requestValues);
+			if (this.reactiveAdapterRegistry != null) {
+				ReactiveAdapter adapter = this.reactiveAdapterRegistry.getAdapter(parameter.getParameterType());
+				if (adapter != null) {
+					MethodParameter nestedParameter = parameter.nested();
+
+					String message = "Async type for @RequestBody should produce value(s)";
+					Assert.isTrue(!adapter.isNoValue(), message);
+					Assert.isTrue(nestedParameter.getNestedParameterType() != Void.class, message);
+
+					if (requestValues instanceof ReactiveHttpRequestValues.Builder reactiveRequestValues) {
+						reactiveRequestValues.setBodyPublisher(
+								adapter.toPublisher(argument), asParameterizedTypeRef(nestedParameter));
+					}
+					else {
+						throw new IllegalStateException(
+								"RequestBody with a reactive type is only supported with reactive client");
+					}
+
+					return true;
+				}
 			}
-			else {
-				requestValues.setBodyValue(argument);
-			}
+
+			// Not a reactive type
+			requestValues.setBodyValue(argument);
 		}
 
 		return true;
 	}
 
-	private <E> void setBody(
-			Object argument, MethodParameter parameter, ReactiveAdapter reactiveAdapter,
-			HttpRequestValues.Builder requestValues) {
-
-		String message = "Async type for @RequestBody should produce value(s)";
-		Assert.isTrue(!reactiveAdapter.isNoValue(), message);
-
-		parameter = parameter.nested();
-		Class<?> elementClass = parameter.getNestedParameterType();
-		Assert.isTrue(elementClass != Void.class, message);
-		ParameterizedTypeReference<E> typeRef = ParameterizedTypeReference.forType(parameter.getNestedGenericParameterType());
-		Publisher<E> publisher = reactiveAdapter.toPublisher(argument);
-
-		requestValues.setBody(publisher, typeRef);
+	private static ParameterizedTypeReference<Object> asParameterizedTypeRef(MethodParameter nestedParam) {
+		return ParameterizedTypeReference.forType(nestedParam.getNestedGenericParameterType());
 	}
 
 }

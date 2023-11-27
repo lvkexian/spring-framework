@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@ package org.springframework.web.reactive.function.client;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import org.springframework.core.ParameterizedTypeReference;
@@ -33,6 +35,7 @@ import org.springframework.util.Assert;
  * Exceptions that contain actual HTTP response data.
  *
  * @author Arjen Poutsma
+ * @author Sebastien Deleuze
  * @since 5.0
  */
 @SuppressWarnings("RedundantSuppression")
@@ -50,14 +53,14 @@ public class WebClientResponseException extends WebClientException {
 	private final HttpHeaders headers;
 
 	@Nullable
+	@SuppressWarnings("serial")
 	private final Charset responseCharset;
 
 	@Nullable
-	private final HttpRequest request;
+	private final transient HttpRequest request;
 
-	@SuppressWarnings("MutableException")
 	@Nullable
-	private Function<ResolvableType, ?> bodyDecodeFunction;
+	private transient Function<ResolvableType, ?> bodyDecodeFunction;
 
 
 	/**
@@ -133,10 +136,29 @@ public class WebClientResponseException extends WebClientException {
 
 		this.statusCode = statusCode;
 		this.statusText = statusText;
-		this.headers = (headers != null ? headers : HttpHeaders.EMPTY);
+		this.headers = copy(headers);
 		this.responseBody = (responseBody != null ? responseBody : new byte[0]);
 		this.responseCharset = charset;
 		this.request = request;
+	}
+
+	/**
+	 * Not all {@code HttpHeaders} implementations are serializable, so we
+	 * make a copy to ensure that {@code WebClientResponseException} is.
+	 */
+	private static HttpHeaders copy(@Nullable HttpHeaders headers) {
+		if (headers == null) {
+			return HttpHeaders.EMPTY;
+		}
+		else {
+			HttpHeaders result = new HttpHeaders();
+			for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
+				for (String value : entry.getValue()) {
+					result.add(entry.getKey(), value);
+				}
+			}
+			return result;
+		}
 	}
 
 
@@ -152,7 +174,7 @@ public class WebClientResponseException extends WebClientException {
 	 * Return the raw HTTP status code value.
 	 * @deprecated as of 6.0, in favor of {@link #getStatusCode()}
 	 */
-	@Deprecated
+	@Deprecated(since = "6.0")
 	public int getRawStatusCode() {
 		return this.statusCode.value();
 	}
@@ -181,11 +203,11 @@ public class WebClientResponseException extends WebClientException {
 	/**
 	 * Return the response content as a String using the charset of media type
 	 * for the response, if available, or otherwise falling back on
-	 * {@literal ISO-8859-1}. Use {@link #getResponseBodyAsString(Charset)} if
+	 * {@literal UTF-8}. Use {@link #getResponseBodyAsString(Charset)} if
 	 * you want to fall back on a different, default charset.
 	 */
 	public String getResponseBodyAsString() {
-		return getResponseBodyAsString(StandardCharsets.ISO_8859_1);
+		return getResponseBodyAsString(StandardCharsets.UTF_8);
 	}
 
 	/**
@@ -212,22 +234,21 @@ public class WebClientResponseException extends WebClientException {
 	 */
 	@Nullable
 	public <E> E getResponseBodyAs(Class<E> targetType) {
-		return getResponseBodyAs(ResolvableType.forClass(targetType));
+		return decodeBody(ResolvableType.forClass(targetType));
 	}
 
 	/**
-	 * Variant of {@link #getResponseBodyAs(Class)} with
-	 * {@link ParameterizedTypeReference}.
+	 * Variant of {@link #getResponseBodyAs(Class)} with {@link ParameterizedTypeReference}.
 	 * @since 6.0
 	 */
 	@Nullable
 	public <E> E getResponseBodyAs(ParameterizedTypeReference<E> targetType) {
-		return getResponseBodyAs(ResolvableType.forType(targetType.getType()));
+		return decodeBody(ResolvableType.forType(targetType.getType()));
 	}
 
 	@SuppressWarnings("unchecked")
 	@Nullable
-	private <E> E getResponseBodyAs(ResolvableType targetType) {
+	private <E> E decodeBody(ResolvableType targetType) {
 		Assert.state(this.bodyDecodeFunction != null, "Decoder function not set");
 		return (E) this.bodyDecodeFunction.apply(targetType);
 	}
@@ -524,7 +545,7 @@ public class WebClientResponseException extends WebClientException {
 	}
 
 	/**
-	 * {@link WebClientResponseException} for status HTTP HTTP 502 Bad Gateway.
+	 * {@link WebClientResponseException} for HTTP status 502 Bad Gateway.
 	 * @since 5.1
 	 */
 	@SuppressWarnings("serial")

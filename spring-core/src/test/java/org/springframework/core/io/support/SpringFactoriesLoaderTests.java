@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -69,6 +69,7 @@ class SpringFactoriesLoaderTests {
 
 
 	@Test
+	@Deprecated
 	void loadFactoryNames() {
 		List<String> factoryNames = SpringFactoriesLoader.loadFactoryNames(DummyFactory.class, null);
 		assertThat(factoryNames).containsExactlyInAnyOrder(MyDummyFactory1.class.getName(), MyDummyFactory2.class.getName());
@@ -106,7 +107,7 @@ class SpringFactoriesLoaderTests {
 
 	@Test
 	void loadWithLoggingFailureHandlerWhenIncompatibleTypeReturnsEmptyList() {
-		Log logger = mock(Log.class);
+		Log logger = mock();
 		FailureHandler failureHandler = FailureHandler.logging(logger);
 		List<String> factories = SpringFactoriesLoader.forDefaultResourceLocation().load(String.class, failureHandler);
 		assertThat(factories).isEmpty();
@@ -137,7 +138,7 @@ class SpringFactoriesLoaderTests {
 
 	@Test
 	void loadWithLoggingFailureHandlerWhenMissingArgumentDropsItem() {
-		Log logger = mock(Log.class);
+		Log logger = mock();
 		FailureHandler failureHandler = FailureHandler.logging(logger);
 		List<DummyFactory> factories = SpringFactoriesLoader.forDefaultResourceLocation(LimitedClassLoader.multipleArgumentFactories)
 					.load(DummyFactory.class, failureHandler);
@@ -201,7 +202,7 @@ class SpringFactoriesLoaderTests {
 
 		@Test
 		void loggingReturnsHandlerThatLogs() {
-			Log logger = mock(Log.class);
+			Log logger = mock();
 			FailureHandler handler = FailureHandler.logging(logger);
 			RuntimeException cause = new RuntimeException();
 			handler.handleFailure(DummyFactory.class, MyDummyFactory1.class.getName(), cause);
@@ -222,7 +223,6 @@ class SpringFactoriesLoaderTests {
 			assertThat(messages).hasSize(1);
 			assertThat(messages.get(0)).startsWith("Unable to instantiate factory class");
 		}
-
 	}
 
 
@@ -291,8 +291,8 @@ class SpringFactoriesLoaderTests {
 			assertThat(resolver.resolve(Integer.class)).isEqualTo(123);
 			assertThat(resolver.resolve(Long.class)).isEqualTo(234L);
 		}
-
 	}
+
 
 	@Nested
 	class FactoryInstantiatorTests {
@@ -349,14 +349,12 @@ class SpringFactoriesLoaderTests {
 		}
 
 		static class DefaultConstructor {
-
 		}
 
 		static class SingleConstructor {
 
 			SingleConstructor(String arg) {
 			}
-
 		}
 
 		static class MultiplePrivateAndSinglePublicConstructor {
@@ -367,7 +365,6 @@ class SpringFactoriesLoaderTests {
 
 			private MultiplePrivateAndSinglePublicConstructor(String arg, boolean extra) {
 			}
-
 		}
 
 		static class MultiplePackagePrivateAndSinglePublicConstructor {
@@ -378,22 +375,18 @@ class SpringFactoriesLoaderTests {
 
 			MultiplePackagePrivateAndSinglePublicConstructor(String arg, boolean extra) {
 			}
-
 		}
-
 
 		static class SinglePackagePrivateConstructor {
 
 			SinglePackagePrivateConstructor(String arg) {
 			}
-
 		}
 
 		static class SinglePrivateConstructor {
 
 			private SinglePrivateConstructor(String arg) {
 			}
-
 		}
 
 		static class MultiplePackagePrivateConstructors {
@@ -404,10 +397,9 @@ class SpringFactoriesLoaderTests {
 
 			MultiplePackagePrivateConstructors(String arg, boolean extra) {
 			}
-
 		}
-
 	}
+
 
 	private static class LimitedClassLoader extends URLClassLoader {
 
@@ -427,7 +419,6 @@ class SpringFactoriesLoaderTests {
 				throw new IllegalStateException(ex);
 			}
 		}
-
 	}
 
 }

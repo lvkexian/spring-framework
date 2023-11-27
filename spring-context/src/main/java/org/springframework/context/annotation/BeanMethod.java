@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,10 +39,16 @@ final class BeanMethod extends ConfigurationMethod {
 		super(metadata, configurationClass);
 	}
 
+
 	@Override
 	public void validate(ProblemReporter problemReporter) {
+		if ("void".equals(getMetadata().getReturnTypeName())) {
+			// declared as void: potential misuse of @Bean, maybe meant as init method instead?
+			problemReporter.error(new VoidDeclaredMethodError());
+		}
+
 		if (getMetadata().isStatic()) {
-			// static @Bean methods have no constraints to validate -> return immediately
+			// static @Bean methods have no further constraints to validate -> return immediately
 			return;
 		}
 
@@ -55,9 +61,8 @@ final class BeanMethod extends ConfigurationMethod {
 	}
 
 	@Override
-	public boolean equals(@Nullable Object obj) {
-		return ((this == obj) || ((obj instanceof BeanMethod) &&
-				this.metadata.equals(((BeanMethod) obj).metadata)));
+	public boolean equals(@Nullable Object other) {
+		return (this == other || (other instanceof BeanMethod that && this.metadata.equals(that.metadata)));
 	}
 
 	@Override
@@ -70,11 +75,21 @@ final class BeanMethod extends ConfigurationMethod {
 		return "BeanMethod: " + this.metadata;
 	}
 
+
+	private class VoidDeclaredMethodError extends Problem {
+
+		VoidDeclaredMethodError() {
+			super("@Bean method '%s' must not be declared as void; change the method's return type or its annotation."
+					.formatted(getMetadata().getMethodName()), getResourceLocation());
+		}
+	}
+
+
 	private class NonOverridableMethodError extends Problem {
 
 		NonOverridableMethodError() {
-			super(String.format("@Bean method '%s' must not be private or final; change the method's modifiers to continue",
-					getMetadata().getMethodName()), getResourceLocation());
+			super("@Bean method '%s' must not be private or final; change the method's modifiers to continue."
+					.formatted(getMetadata().getMethodName()), getResourceLocation());
 		}
 	}
 

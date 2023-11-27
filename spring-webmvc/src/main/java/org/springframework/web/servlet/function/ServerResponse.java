@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import jakarta.servlet.ServletException;
@@ -47,6 +46,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.lang.Nullable;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.servlet.ModelAndView;
 
 /**
@@ -70,7 +70,7 @@ public interface ServerResponse {
 	 * @return the status as an integer
 	 * @deprecated as of 6.0, in favor of {@link #statusCode()}
 	 */
-	@Deprecated
+	@Deprecated(since = "6.0")
 	int rawStatusCode();
 
 	/**
@@ -104,6 +104,18 @@ public interface ServerResponse {
 	 */
 	static BodyBuilder from(ServerResponse other) {
 		return new DefaultServerResponseBuilder(other);
+	}
+
+	/**
+	 * Create a {@code ServerResponse} from the given {@link ErrorResponse}.
+	 * @param response the {@link ErrorResponse} to initialize from
+	 * @return the built response
+	 * @since 6.0
+	 */
+	static ServerResponse from(ErrorResponse response) {
+		return status(response.getStatusCode())
+				.headers(headers -> headers.putAll(response.getHeaders()))
+				.body(response.getBody());
 	}
 
 	/**
@@ -444,8 +456,28 @@ public interface ServerResponse {
 		 * Build the response entity with a custom write function.
 		 * @param writeFunction the function used to write to the {@link HttpServletResponse}
 		 */
-		ServerResponse build(BiFunction<HttpServletRequest, HttpServletResponse,
-				ModelAndView> writeFunction);
+		ServerResponse build(WriteFunction writeFunction);
+
+
+		/**
+		 * Defines the contract for {@link #build(WriteFunction)}.
+		 * @since 6.1
+		 */
+		@FunctionalInterface
+		interface WriteFunction {
+
+			/**
+			 * Write to the given {@code servletResponse}, or return a
+			 * {@code ModelAndView} to be rendered.
+			 * @param servletRequest the HTTP request
+			 * @param servletResponse  the HTTP response to write to
+			 * @return a {@code ModelAndView} to render, or {@code null} if handled directly
+			 * @throws Exception in case of Servlet errors
+			 */
+			@Nullable
+			ModelAndView write(HttpServletRequest servletRequest, HttpServletResponse servletResponse) throws Exception;
+
+		}
 
 	}
 
@@ -603,7 +635,7 @@ public interface ServerResponse {
 		/**
 		 * Register a callback to be invoked when an error occurs during SSE
 		 * processing.
-		 * @param onError  the callback to invoke on error
+		 * @param onError the callback to invoke on error
 		 * @return this builder
 		 */
 		SseBuilder onError(Consumer<Throwable> onError);

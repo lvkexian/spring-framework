@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@ package org.springframework.beans.factory.aot;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -33,56 +35,55 @@ import javax.lang.model.element.Modifier;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import org.springframework.aot.generate.GeneratedMethods;
-import org.springframework.aot.test.generator.compile.Compiled;
-import org.springframework.aot.test.generator.compile.TestCompiler;
-import org.springframework.aot.test.generator.file.SourceFile;
+import org.springframework.aot.generate.GeneratedClass;
+import org.springframework.aot.test.generate.TestGenerationContext;
 import org.springframework.beans.factory.config.BeanReference;
 import org.springframework.beans.factory.config.RuntimeBeanNameReference;
+import org.springframework.beans.factory.config.RuntimeBeanReference;
 import org.springframework.beans.factory.support.ManagedList;
 import org.springframework.beans.factory.support.ManagedMap;
 import org.springframework.beans.factory.support.ManagedSet;
+import org.springframework.beans.testfixture.beans.factory.aot.DeferredTypeBuilder;
 import org.springframework.core.ResolvableType;
+import org.springframework.core.test.tools.Compiled;
+import org.springframework.core.test.tools.TestCompiler;
 import org.springframework.javapoet.CodeBlock;
-import org.springframework.javapoet.JavaFile;
 import org.springframework.javapoet.MethodSpec;
 import org.springframework.javapoet.ParameterizedTypeName;
-import org.springframework.javapoet.TypeSpec;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 /**
  * Tests for {@link BeanDefinitionPropertyValueCodeGenerator}.
  *
  * @author Stephane Nicoll
  * @author Phillip Webb
+ * @author Sebastien Deleuze
  * @since 6.0
  * @see BeanDefinitionPropertyValueCodeGeneratorTests
  */
 class BeanDefinitionPropertyValueCodeGeneratorTests {
 
-	private GeneratedMethods generatedMethods = new GeneratedMethods();
-
-	private BeanDefinitionPropertyValueCodeGenerator instance = new BeanDefinitionPropertyValueCodeGenerator(
-			generatedMethods);
-
-	private void compile(Object value, BiConsumer<Object, Compiled> result) {
-		CodeBlock code = instance.generateCode(value);
-		JavaFile javaFile = createJavaFile(code);
-		TestCompiler.forSystem().compile(SourceFile.of(javaFile::writeTo),
-				compiled -> result.accept(compiled.getInstance(Supplier.class).get(),
-						compiled));
+	private static BeanDefinitionPropertyValueCodeGenerator createPropertyValuesCodeGenerator(GeneratedClass generatedClass) {
+		return new BeanDefinitionPropertyValueCodeGenerator(generatedClass.getMethods(), null);
 	}
 
-	private JavaFile createJavaFile(CodeBlock code) {
-		TypeSpec.Builder builder = TypeSpec.classBuilder("InstanceSupplier");
-		builder.addModifiers(Modifier.PUBLIC);
-		builder.addSuperinterface(
-				ParameterizedTypeName.get(Supplier.class, Object.class));
-		builder.addMethod(MethodSpec.methodBuilder("get").addModifiers(Modifier.PUBLIC)
-				.returns(Object.class).addStatement("return $L", code).build());
-		generatedMethods.doWithMethodSpecs(builder::addMethod);
-		return JavaFile.builder("com.example", builder.build()).build();
+	private void compile(Object value, BiConsumer<Object, Compiled> result) {
+		TestGenerationContext generationContext = new TestGenerationContext();
+		DeferredTypeBuilder typeBuilder = new DeferredTypeBuilder();
+		GeneratedClass generatedClass = generationContext.getGeneratedClasses().addForFeature("TestCode", typeBuilder);
+		CodeBlock generatedCode = createPropertyValuesCodeGenerator(generatedClass).generateCode(value);
+		typeBuilder.set(type -> {
+			type.addModifiers(Modifier.PUBLIC);
+			type.addSuperinterface(
+					ParameterizedTypeName.get(Supplier.class, Object.class));
+			type.addMethod(MethodSpec.methodBuilder("get").addModifiers(Modifier.PUBLIC)
+					.returns(Object.class).addStatement("return $L", generatedCode).build());
+		});
+		generationContext.writeGeneratedContent();
+		TestCompiler.forSystem().with(generationContext).compile(compiled ->
+				result.accept(compiled.getInstance(Supplier.class).get(), compiled));
 	}
 
 	@Nested
@@ -196,6 +197,19 @@ class BeanDefinitionPropertyValueCodeGeneratorTests {
 			compile("test\n", (instance, compiled) -> {
 				assertThat(instance).isEqualTo("test\n");
 				assertThat(compiled.getSourceFile()).contains("\n");
+			});
+		}
+
+	}
+
+	@Nested
+	class CharsetTests {
+
+		@Test
+		void generateWhenCharset() {
+			compile(StandardCharsets.UTF_8, (instance, compiled) -> {
+				assertThat(instance).isEqualTo(Charset.forName("UTF-8"));
+				assertThat(compiled.getSourceFile()).contains("\"UTF-8\"");
 			});
 		}
 
@@ -425,6 +439,12 @@ class BeanDefinitionPropertyValueCodeGeneratorTests {
 			});
 		}
 
+		@Test
+		void generateWhenSetOfClass() {
+			Set<Class<?>> set = Set.of(String.class, Integer.class, Long.class);
+			compile(set, (instance, compiler) -> assertThat(instance).isEqualTo(set));
+		}
+
 	}
 
 	@Nested
@@ -469,11 +489,75 @@ class BeanDefinitionPropertyValueCodeGeneratorTests {
 	class BeanReferenceTests {
 
 		@Test
-		void generatedWhenBeanReference() {
-			BeanReference beanReference = new RuntimeBeanNameReference("test");
-			compile(beanReference, (instance, compiler) ->
-					assertThat(((BeanReference) instance).getBeanName()).isEqualTo(beanReference.getBeanName()));
+		void generatedWhenBeanNameReference() {
+			RuntimeBeanNameReference beanReference = new RuntimeBeanNameReference("test");
+			compile(beanReference, (instance, compiler) -> {
+				RuntimeBeanReference actual = (RuntimeBeanReference) instance;
+				assertThat(actual.getBeanName()).isEqualTo(beanReference.getBeanName());
+			});
 		}
+
+		@Test
+		void generatedWhenBeanReferenceByName() {
+			RuntimeBeanReference beanReference = new RuntimeBeanReference("test");
+			compile(beanReference, (instance, compiler) -> {
+				RuntimeBeanReference actual = (RuntimeBeanReference) instance;
+				assertThat(actual.getBeanName()).isEqualTo(beanReference.getBeanName());
+				assertThat(actual.getBeanType()).isEqualTo(beanReference.getBeanType());
+			});
+		}
+
+		@Test
+		void generatedWhenBeanReferenceByType() {
+			BeanReference beanReference = new RuntimeBeanReference(String.class);
+			compile(beanReference, (instance, compiler) -> {
+				RuntimeBeanReference actual = (RuntimeBeanReference) instance;
+				assertThat(actual.getBeanType()).isEqualTo(String.class);
+			});
+		}
+
+	}
+
+	@Nested
+	static class ExceptionTests {
+
+		@Test
+		void generateWhenUnsupportedDataTypeThrowsException() {
+			SampleValue sampleValue = new SampleValue("one");
+			assertThatIllegalArgumentException().isThrownBy(() -> generateCode(sampleValue))
+					.withMessageContaining("Failed to generate code for")
+					.withMessageContaining(sampleValue.toString())
+					.withMessageContaining(SampleValue.class.getName())
+					.havingCause()
+					.withMessageContaining("Code generation does not support")
+					.withMessageContaining(SampleValue.class.getName());
+		}
+
+		@Test
+		void generateWhenListOfUnsupportedElement() {
+			SampleValue one = new SampleValue("one");
+			SampleValue two = new SampleValue("two");
+			List<SampleValue> list = List.of(one, two);
+			assertThatIllegalArgumentException().isThrownBy(() -> generateCode(list))
+					.withMessageContaining("Failed to generate code for")
+					.withMessageContaining(list.toString())
+					.withMessageContaining(list.getClass().getName())
+					.havingCause()
+					.withMessageContaining("Failed to generate code for")
+					.withMessageContaining(one.toString())
+					.withMessageContaining("?")
+					.havingCause()
+					.withMessageContaining("Code generation does not support ?");
+		}
+
+		private void generateCode(Object value) {
+			TestGenerationContext context = new TestGenerationContext();
+			GeneratedClass generatedClass = context.getGeneratedClasses()
+					.addForFeature("Test", type -> {});
+			createPropertyValuesCodeGenerator(generatedClass).generateCode(value);
+		}
+
+		record SampleValue(String name) {}
 
 	}
 

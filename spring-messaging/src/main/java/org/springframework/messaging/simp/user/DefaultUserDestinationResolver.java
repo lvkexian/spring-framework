@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -130,18 +130,18 @@ public class DefaultUserDestinationResolver implements UserDestinationResolver {
 			return null;
 		}
 		String user = parseResult.getUser();
-		String sourceDestination = parseResult.getSourceDestination();
+		String sourceDest = parseResult.getSourceDestination();
+		Set<String> sessionIds = parseResult.getSessionIds();
 		Set<String> targetSet = new HashSet<>();
-		for (String sessionId : parseResult.getSessionIds()) {
-			String actualDestination = parseResult.getActualDestination();
-			String targetDestination = getTargetDestination(
-					sourceDestination, actualDestination, sessionId, user);
-			if (targetDestination != null) {
-				targetSet.add(targetDestination);
+		for (String sessionId : sessionIds) {
+			String actualDest = parseResult.getActualDestination();
+			String targetDest = getTargetDestination(sourceDest, actualDest, sessionId, user);
+			if (targetDest != null) {
+				targetSet.add(targetDest);
 			}
 		}
-		String subscribeDestination = parseResult.getSubscribeDestination();
-		return new UserDestinationResult(sourceDestination, targetSet, subscribeDestination, user);
+		String subscribeDest = parseResult.getSubscribeDestination();
+		return new UserDestinationResult(sourceDest, targetSet, subscribeDest, user, sessionIds);
 	}
 
 	@Nullable
@@ -179,7 +179,7 @@ public class DefaultUserDestinationResolver implements UserDestinationResolver {
 		}
 		Principal principal = SimpMessageHeaderAccessor.getUser(headers);
 		String user = (principal != null ? principal.getName() : null);
-		Assert.isTrue(user == null || !user.contains("%2F"), "Invalid sequence \"%2F\" in user name: " + user);
+		Assert.isTrue(user == null || !user.contains("%2F"), () -> "Invalid sequence \"%2F\" in user name: " + user);
 		Set<String> sessionIds = Collections.singleton(sessionId);
 		return new ParseResult(sourceDestination, actualDestination, sourceDestination, sessionIds, user);
 	}
@@ -283,22 +283,37 @@ public class DefaultUserDestinationResolver implements UserDestinationResolver {
 			this.user = user;
 		}
 
+		/**
+		 * The destination from the source message, e.g. "/user/{user}/queue/position-updates".
+		 */
 		public String getSourceDestination() {
 			return this.sourceDestination;
 		}
 
+		/**
+		 * The actual destination, without any user prefix, e.g. "/queue/position-updates".
+		 */
 		public String getActualDestination() {
 			return this.actualDestination;
 		}
 
+		/**
+		 * The user destination as it would be on a subscription, "/user/queue/position-updates".
+		 */
 		public String getSubscribeDestination() {
 			return this.subscribeDestination;
 		}
 
+		/**
+		 * The session id or id's for the user.
+		 */
 		public Set<String> getSessionIds() {
 			return this.sessionIds;
 		}
 
+		/**
+		 * The name of the user associated with the session.
+		 */
 		@Nullable
 		public String getUser() {
 			return this.user;

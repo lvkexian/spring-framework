@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package org.springframework.http.converter;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.InputStreamResource;
@@ -144,7 +145,9 @@ public class ResourceHttpMessageConverter extends AbstractHttpMessageConverter<R
 		try {
 			InputStream in = resource.getInputStream();
 			try {
-				StreamUtils.copy(in, outputMessage.getBody());
+				OutputStream out = outputMessage.getBody();
+				in.transferTo(out);
+				out.flush();
 			}
 			catch (NullPointerException ex) {
 				// ignore, see SPR-13620
@@ -163,4 +166,8 @@ public class ResourceHttpMessageConverter extends AbstractHttpMessageConverter<R
 		}
 	}
 
+	@Override
+	protected boolean supportsRepeatableWrites(Resource resource) {
+		return !(resource instanceof InputStreamResource);
+	}
 }

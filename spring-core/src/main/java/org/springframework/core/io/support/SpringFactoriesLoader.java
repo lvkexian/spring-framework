@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -97,10 +97,6 @@ public class SpringFactoriesLoader {
 	 */
 	public static final String FACTORIES_RESOURCE_LOCATION = "META-INF/spring.factories";
 
-	private static final ArgumentResolver NO_ARGUMENT_RESOLVER = null;
-
-	private static final FailureHandler NO_FAILURE_HANDLER = null;
-
 	private static final FailureHandler THROWING_FAILURE_HANDLER = FailureHandler.throwing();
 
 	private static final Log logger = LogFactory.getLog(SpringFactoriesLoader.class);
@@ -118,6 +114,7 @@ public class SpringFactoriesLoader {
 	 * Create a new {@link SpringFactoriesLoader} instance.
 	 * @param classLoader the classloader used to instantiate the factories
 	 * @param factories a map of factory class name to implementation class names
+	 * @since 6.0
 	 */
 	protected SpringFactoriesLoader(@Nullable ClassLoader classLoader, Map<String, List<String>> factories) {
 		this.classLoader = classLoader;
@@ -127,10 +124,10 @@ public class SpringFactoriesLoader {
 
 	/**
 	 * Load and instantiate the factory implementations of the given type from
-	 * {@value #FACTORIES_RESOURCE_LOCATION}, using the given class loader and
-	 * a default argument resolver that expects a no-arg constructor.
+	 * {@value #FACTORIES_RESOURCE_LOCATION}, using the configured class loader
+	 * and a default argument resolver that expects a no-arg constructor.
 	 * <p>The returned factories are sorted through {@link AnnotationAwareOrderComparator}.
-	 * <p>If a custom instantiation strategy is required, use {@code loadFactories}
+	 * <p>If a custom instantiation strategy is required, use {@code load(...)}
 	 * with a custom {@link ArgumentResolver ArgumentResolver} and/or
 	 * {@link FailureHandler FailureHandler}.
 	 * <p>As of Spring Framework 5.3, if duplicate implementation class names are
@@ -139,15 +136,16 @@ public class SpringFactoriesLoader {
 	 * @param factoryType the interface or abstract class representing the factory
 	 * @throws IllegalArgumentException if any factory implementation class cannot
 	 * be loaded or if an error occurs while instantiating any factory
+	 * @since 6.0
 	 */
 	public <T> List<T> load(Class<T> factoryType) {
-		return load(factoryType, NO_ARGUMENT_RESOLVER, NO_FAILURE_HANDLER);
+		return load(factoryType, null, null);
 	}
 
 	/**
 	 * Load and instantiate the factory implementations of the given type from
-	 * {@value #FACTORIES_RESOURCE_LOCATION}, using the given class loader and
-	 * argument resolver.
+	 * {@value #FACTORIES_RESOURCE_LOCATION}, using the configured class loader
+	 * and the given argument resolver.
 	 * <p>The returned factories are sorted through {@link AnnotationAwareOrderComparator}.
 	 * <p>As of Spring Framework 5.3, if duplicate implementation class names are
 	 * discovered for a given factory type, only one instance of the duplicated
@@ -159,44 +157,46 @@ public class SpringFactoriesLoader {
 	 * @since 6.0
 	 */
 	public <T> List<T> load(Class<T> factoryType, @Nullable ArgumentResolver argumentResolver) {
-		return load(factoryType, argumentResolver, NO_FAILURE_HANDLER);
+		return load(factoryType, argumentResolver, null);
 	}
 
 	/**
 	 * Load and instantiate the factory implementations of the given type from
-	 * {@value #FACTORIES_RESOURCE_LOCATION}, using the given class loader with
-	 * custom failure handling provided by the given failure handler.
+	 * {@value #FACTORIES_RESOURCE_LOCATION}, using the configured class loader
+	 * with custom failure handling provided by the given failure handler.
 	 * <p>The returned factories are sorted through {@link AnnotationAwareOrderComparator}.
 	 * <p>As of Spring Framework 5.3, if duplicate implementation class names are
 	 * discovered for a given factory type, only one instance of the duplicated
 	 * implementation type will be instantiated.
-	 * <p>For any factory implementation class that cannot be loaded or error that occurs while
-	 * instantiating it, the given failure handler is called.
+	 * <p>For any factory implementation class that cannot be loaded or error that
+	 * occurs while instantiating it, the given failure handler is called.
 	 * @param factoryType the interface or abstract class representing the factory
 	 * @param failureHandler strategy used to handle factory instantiation failures
 	 * @since 6.0
 	 */
 	public <T> List<T> load(Class<T> factoryType, @Nullable FailureHandler failureHandler) {
-		return load(factoryType, NO_ARGUMENT_RESOLVER, failureHandler);
+		return load(factoryType, null, failureHandler);
 	}
 
 	/**
 	 * Load and instantiate the factory implementations of the given type from
-	 * {@value #FACTORIES_RESOURCE_LOCATION}, using the given class loader,
-	 * argument resolver, and custom failure handling provided by the given
+	 * {@value #FACTORIES_RESOURCE_LOCATION}, using the configured class loader,
+	 * the given argument resolver, and custom failure handling provided by the given
 	 * failure handler.
 	 * <p>The returned factories are sorted through {@link AnnotationAwareOrderComparator}.
 	 * <p>As of Spring Framework 5.3, if duplicate implementation class names are
 	 * discovered for a given factory type, only one instance of the duplicated
 	 * implementation type will be instantiated.
-	 * <p>For any factory implementation class that cannot be loaded or error that occurs while
-	 * instantiating it, the given failure handler is called.
+	 * <p>For any factory implementation class that cannot be loaded or error that
+	 * occurs while instantiating it, the given failure handler is called.
 	 * @param factoryType the interface or abstract class representing the factory
 	 * @param argumentResolver strategy used to resolve constructor arguments by their type
 	 * @param failureHandler strategy used to handle factory instantiation failures
 	 * @since 6.0
 	 */
-	public <T> List<T> load(Class<T> factoryType, @Nullable ArgumentResolver argumentResolver, @Nullable FailureHandler failureHandler) {
+	public <T> List<T> load(Class<T> factoryType, @Nullable ArgumentResolver argumentResolver,
+			@Nullable FailureHandler failureHandler) {
+
 		Assert.notNull(factoryType, "'factoryType' must not be null");
 		List<String> implementationNames = loadFactoryNames(factoryType);
 		logger.trace(LogMessage.format("Loaded [%s] names: %s", factoryType.getName(), implementationNames));
@@ -222,8 +222,8 @@ public class SpringFactoriesLoader {
 
 		try {
 			Class<?> factoryImplementationClass = ClassUtils.forName(implementationName, this.classLoader);
-			Assert.isTrue(type.isAssignableFrom(factoryImplementationClass),
-					() -> "Class [%s] is not assignable to factory type [%s]".formatted(implementationName, type.getName()));
+			Assert.isTrue(type.isAssignableFrom(factoryImplementationClass), () ->
+					"Class [%s] is not assignable to factory type [%s]".formatted(implementationName, type.getName()));
 			FactoryInstantiator<T> factoryInstantiator = FactoryInstantiator.forClass(factoryImplementationClass);
 			return factoryInstantiator.instantiate(argumentResolver);
 		}
@@ -232,6 +232,7 @@ public class SpringFactoriesLoader {
 			return null;
 		}
 	}
+
 
 	/**
 	 * Load and instantiate the factory implementations of the given type from
@@ -244,7 +245,8 @@ public class SpringFactoriesLoader {
 	 * {@link FailureHandler} support use {@link #forDefaultResourceLocation(ClassLoader)}
 	 * to obtain a {@link SpringFactoriesLoader} instance.
 	 * @param factoryType the interface or abstract class representing the factory
-	 * @param classLoader the ClassLoader to use for loading (can be {@code null} to use the default)
+	 * @param classLoader the ClassLoader to use for loading (can be {@code null}
+	 * to use the default)
 	 * @throws IllegalArgumentException if any factory implementation class cannot
 	 * be loaded or if an error occurs while instantiating any factory
 	 */
@@ -264,13 +266,15 @@ public class SpringFactoriesLoader {
 	 * {@code null} to use the default
 	 * @throws IllegalArgumentException if an error occurs while loading factory names
 	 * @see #loadFactories
+	 * @deprecated as of 6.0 in favor of {@link #load(Class, ArgumentResolver, FailureHandler)}
 	 */
+	@Deprecated(since = "6.0")
 	public static List<String> loadFactoryNames(Class<?> factoryType, @Nullable ClassLoader classLoader) {
 		return forDefaultResourceLocation(classLoader).loadFactoryNames(factoryType);
 	}
 
 	/**
-	 * Return a {@link SpringFactoriesLoader} instance that will load and
+	 * Create a {@link SpringFactoriesLoader} instance that will load and
 	 * instantiate the factory implementations from
 	 * {@value #FACTORIES_RESOURCE_LOCATION}, using the default class loader.
 	 * @return a {@link SpringFactoriesLoader} instance
@@ -282,7 +286,7 @@ public class SpringFactoriesLoader {
 	}
 
 	/**
-	 * Return a {@link SpringFactoriesLoader} instance that will load and
+	 * Create a {@link SpringFactoriesLoader} instance that will load and
 	 * instantiate the factory implementations from
 	 * {@value #FACTORIES_RESOURCE_LOCATION}, using the given class loader.
 	 * @param classLoader the ClassLoader to use for loading resources; can be
@@ -292,42 +296,44 @@ public class SpringFactoriesLoader {
 	 * @see #forDefaultResourceLocation()
 	 */
 	public static SpringFactoriesLoader forDefaultResourceLocation(@Nullable ClassLoader classLoader) {
-		return forResourceLocation(classLoader, FACTORIES_RESOURCE_LOCATION);
+		return forResourceLocation(FACTORIES_RESOURCE_LOCATION, classLoader);
 	}
 
 	/**
-	 * Return a {@link SpringFactoriesLoader} instance that will load and
-	 * instantiate the factory implementations from the given location, using
-	 * the default class loader.
+	 * Create a {@link SpringFactoriesLoader} instance that will load and
+	 * instantiate the factory implementations from the given location,
+	 * using the default class loader.
+	 * @param resourceLocation the resource location to look for factories
 	 * @return a {@link SpringFactoriesLoader} instance
 	 * @since 6.0
-	 * @see #forResourceLocation(ClassLoader, String)
+	 * @see #forResourceLocation(String, ClassLoader)
 	 */
 	public static SpringFactoriesLoader forResourceLocation(String resourceLocation) {
-		return forResourceLocation(null, resourceLocation);
+		return forResourceLocation(resourceLocation, null);
 	}
 
 	/**
-	 * Return a {@link SpringFactoriesLoader} instance that will load and
-	 * instantiate the factory implementations from the given location, using
-	 * the given class loader.
-	 * @param classLoader the ClassLoader to use for loading resources; can be
-	 * {@code null} to use the default
+	 * Create a {@link SpringFactoriesLoader} instance that will load and
+	 * instantiate the factory implementations from the given location,
+	 * using the given class loader.
+	 * @param resourceLocation the resource location to look for factories
+	 * @param classLoader the ClassLoader to use for loading resources;
+	 * can be {@code null} to use the default
 	 * @return a {@link SpringFactoriesLoader} instance
 	 * @since 6.0
 	 * @see #forResourceLocation(String)
 	 */
-	public static SpringFactoriesLoader forResourceLocation(@Nullable ClassLoader classLoader, String resourceLocation) {
+	public static SpringFactoriesLoader forResourceLocation(String resourceLocation, @Nullable ClassLoader classLoader) {
 		Assert.hasText(resourceLocation, "'resourceLocation' must not be empty");
 		ClassLoader resourceClassLoader = (classLoader != null ? classLoader :
 				SpringFactoriesLoader.class.getClassLoader());
-		Map<String, SpringFactoriesLoader> loaders = SpringFactoriesLoader.cache.computeIfAbsent(
+		Map<String, SpringFactoriesLoader> loaders = cache.computeIfAbsent(
 				resourceClassLoader, key -> new ConcurrentReferenceHashMap<>());
 		return loaders.computeIfAbsent(resourceLocation, key ->
 				new SpringFactoriesLoader(classLoader, loadFactoriesResource(resourceClassLoader, resourceLocation)));
 	}
 
-	static Map<String, List<String>> loadFactoriesResource(ClassLoader classLoader, String resourceLocation) {
+	protected static Map<String, List<String>> loadFactoriesResource(ClassLoader classLoader, String resourceLocation) {
 		Map<String, List<String>> result = new LinkedHashMap<>();
 		try {
 			Enumeration<URL> urls = classLoader.getResources(resourceLocation);
@@ -335,9 +341,10 @@ public class SpringFactoriesLoader {
 				UrlResource resource = new UrlResource(urls.nextElement());
 				Properties properties = PropertiesLoaderUtils.loadProperties(resource);
 				properties.forEach((name, value) -> {
-					List<String> implementations = result.computeIfAbsent(((String) name).trim(), key -> new ArrayList<>());
-					Arrays.stream(StringUtils.commaDelimitedListToStringArray((String) value))
-						.map(String::trim).forEach(implementations::add);
+					String[] factoryImplementationNames = StringUtils.commaDelimitedListToStringArray((String) value);
+					List<String> implementations = result.computeIfAbsent(((String) name).trim(),
+							key -> new ArrayList<>(factoryImplementationNames.length));
+					Arrays.stream(factoryImplementationNames).map(String::trim).forEach(implementations::add);
 				});
 			}
 			result.replaceAll(SpringFactoriesLoader::toDistinctUnmodifiableList);
@@ -355,18 +362,17 @@ public class SpringFactoriesLoader {
 
 	/**
 	 * Internal instantiator used to create the factory instance.
+	 * @since 6.0
 	 * @param <T> the instance implementation type
 	 */
 	static final class FactoryInstantiator<T> {
 
 		private final Constructor<T> constructor;
 
-
 		private FactoryInstantiator(Constructor<T> constructor) {
 			ReflectionUtils.makeAccessible(constructor);
 			this.constructor = constructor;
 		}
-
 
 		T instantiate(@Nullable ArgumentResolver argumentResolver) throws Exception {
 			Object[] args = resolveArgs(argumentResolver);
@@ -428,12 +434,12 @@ public class SpringFactoriesLoader {
 				return null;
 			}
 		}
-
 	}
 
 
 	/**
 	 * Nested class to avoid a hard dependency on Kotlin at runtime.
+	 * @since 6.0
 	 */
 	private static class KotlinDelegate {
 
@@ -487,13 +493,11 @@ public class SpringFactoriesLoader {
 		private static <T> T instantiate(KFunction<T> kotlinConstructor, Map<KParameter, Object> args) {
 			return kotlinConstructor.callBy(args);
 		}
-
 	}
 
 
 	/**
 	 * Strategy for resolving constructor arguments based on their type.
-	 *
 	 * @since 6.0
 	 * @see ArgumentResolver#of(Class, Object)
 	 * @see ArgumentResolver#ofSupplied(Class, Supplier)
@@ -590,22 +594,18 @@ public class SpringFactoriesLoader {
 		 */
 		static ArgumentResolver from(Function<Class<?>, Object> function) {
 			return new ArgumentResolver() {
-
 				@SuppressWarnings("unchecked")
 				@Override
 				public <T> T resolve(Class<T> type) {
 					return (T) function.apply(type);
 				}
-
 			};
 		}
-
 	}
 
 
 	/**
 	 * Strategy for handling a failure that occurs when instantiating a factory.
-	 *
 	 * @since 6.0
 	 * @see FailureHandler#throwing()
 	 * @see FailureHandler#logging(Log)
@@ -625,51 +625,52 @@ public class SpringFactoriesLoader {
 		 */
 		void handleFailure(Class<?> factoryType, String factoryImplementationName, Throwable failure);
 
+
 		/**
-		 * Return a new {@link FailureHandler} that handles
-		 * errors by throwing an {@link IllegalArgumentException}.
+		 * Create a new {@link FailureHandler} that handles errors by throwing an
+		 * {@link IllegalArgumentException}.
 		 * @return a new {@link FailureHandler} instance
+		 * @see #throwing(BiFunction)
 		 */
 		static FailureHandler throwing() {
 			return throwing(IllegalArgumentException::new);
 		}
 
 		/**
-		 * Return a new {@link FailureHandler} that handles errors by throwing an
+		 * Create a new {@link FailureHandler} that handles errors by throwing an
 		 * exception.
 		 * @param exceptionFactory factory used to create the exception
 		 * @return a new {@link FailureHandler} instance
 		 */
 		static FailureHandler throwing(BiFunction<String, Throwable, ? extends RuntimeException> exceptionFactory) {
-			return handleMessage((message, failure) -> {
-				throw exceptionFactory.apply(message.get(), failure);
+			return handleMessage((messageSupplier, failure) -> {
+				throw exceptionFactory.apply(messageSupplier.get(), failure);
 			});
 		}
 
 		/**
-		 * Return a new {@link FailureHandler} that handles errors by logging trace
+		 * Create a new {@link FailureHandler} that handles errors by logging trace
 		 * messages.
-		 * @param logger the logger used to log message
+		 * @param logger the logger used to log messages
 		 * @return a new {@link FailureHandler} instance
 		 */
 		static FailureHandler logging(Log logger) {
-			return handleMessage((message, failure) -> logger.trace(LogMessage.of(message), failure));
+			return handleMessage((messageSupplier, failure) -> logger.trace(LogMessage.of(messageSupplier), failure));
 		}
 
 		/**
-		 * Return a new {@link FailureHandler} that handles errors using a standard
+		 * Create a new {@link FailureHandler} that handles errors using a standard
 		 * formatted message.
 		 * @param messageHandler the message handler used to handle the problem
 		 * @return a new {@link FailureHandler} instance
 		 */
 		static FailureHandler handleMessage(BiConsumer<Supplier<String>, Throwable> messageHandler) {
 			return (factoryType, factoryImplementationName, failure) -> {
-				Supplier<String> message = () -> "Unable to instantiate factory class [%s] for factory type [%s]"
-					.formatted(factoryImplementationName, factoryType.getName());
-				messageHandler.accept(message, failure);
+				Supplier<String> messageSupplier = () -> "Unable to instantiate factory class [%s] for factory type [%s]"
+						.formatted(factoryImplementationName, factoryType.getName());
+				messageHandler.accept(messageSupplier, failure);
 			};
 		}
-
 	}
 
 }

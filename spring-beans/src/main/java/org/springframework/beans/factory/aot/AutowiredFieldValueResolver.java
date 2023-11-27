@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,8 +39,8 @@ import org.springframework.util.function.ThrowingConsumer;
  * AOT-processed applications as a targeted alternative to the
  * {@link org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor
  * AutowiredAnnotationBeanPostProcessor}.
- * <p>
- * When resolving arguments in a native image, the {@link Field} being used must
+ *
+ * <p>When resolving arguments in a native image, the {@link Field} being used must
  * be marked with an {@link ExecutableMode#INTROSPECT introspection} hint so
  * that field annotations can be read. Full {@link ExecutableMode#INVOKE
  * invocation} hints are only required if the
@@ -64,7 +64,7 @@ public final class AutowiredFieldValueResolver extends AutowiredElementResolver 
 	private AutowiredFieldValueResolver(String fieldName, boolean required,
 			@Nullable String shortcut) {
 
-		Assert.hasText(fieldName, "FieldName must not be empty");
+		Assert.hasText(fieldName, "'fieldName' must not be empty");
 		this.fieldName = fieldName;
 		this.required = required;
 		this.shortcut = shortcut;
@@ -110,8 +110,8 @@ public final class AutowiredFieldValueResolver extends AutowiredElementResolver 
 	 * @param action the action to execute with the resolved field value
 	 */
 	public <T> void resolve(RegisteredBean registeredBean, ThrowingConsumer<T> action) {
-		Assert.notNull(registeredBean, "RegisteredBean must not be null");
-		Assert.notNull(action, "Action must not be null");
+		Assert.notNull(registeredBean, "'registeredBean' must not be null");
+		Assert.notNull(action, "'action' must not be null");
 		T resolved = resolve(registeredBean);
 		if (resolved != null) {
 			action.accept(resolved);
@@ -150,7 +150,7 @@ public final class AutowiredFieldValueResolver extends AutowiredElementResolver 
 	 */
 	@Nullable
 	public Object resolveObject(RegisteredBean registeredBean) {
-		Assert.notNull(registeredBean, "RegisteredBean must not be null");
+		Assert.notNull(registeredBean, "'registeredBean' must not be null");
 		return resolveValue(registeredBean, getField(registeredBean));
 	}
 
@@ -161,8 +161,8 @@ public final class AutowiredFieldValueResolver extends AutowiredElementResolver 
 	 * @param instance the bean instance
 	 */
 	public void resolveAndSet(RegisteredBean registeredBean, Object instance) {
-		Assert.notNull(registeredBean, "RegisteredBean must not be null");
-		Assert.notNull(instance, "Instance must not be null");
+		Assert.notNull(registeredBean, "'registeredBean' must not be null");
+		Assert.notNull(instance, "'instance' must not be null");
 		Field field = getField(registeredBean);
 		Object resolved = resolveValue(registeredBean, field);
 		if (resolved != null) {
@@ -179,8 +179,7 @@ public final class AutowiredFieldValueResolver extends AutowiredElementResolver 
 		DependencyDescriptor descriptor = new DependencyDescriptor(field, this.required);
 		descriptor.setContainingClass(beanClass);
 		if (this.shortcut != null) {
-			descriptor = new ShortcutDependencyDescriptor(descriptor, this.shortcut,
-					field.getType());
+			descriptor = new ShortcutDependencyDescriptor(descriptor, this.shortcut);
 		}
 		Set<String> autowiredBeanNames = new LinkedHashSet<>(1);
 		TypeConverter typeConverter = beanFactory.getTypeConverter();

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,10 @@
 
 package org.springframework.aot.nativex;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.springframework.aot.hint.ConditionalHint;
@@ -50,21 +47,21 @@ class ResourceHintsWriter {
 	public void write(BasicJsonWriter writer, ResourceHints hints) {
 		Map<String, Object> attributes = new LinkedHashMap<>();
 		addIfNotEmpty(attributes, "resources", toAttributes(hints));
-		handleResourceBundles(attributes, hints.resourceBundles());
+		handleResourceBundles(attributes, hints.resourceBundleHints());
 		writer.writeObject(attributes);
 	}
 
 	private Map<String, Object> toAttributes(ResourceHints hint) {
 		Map<String, Object> attributes = new LinkedHashMap<>();
-		addIfNotEmpty(attributes, "includes", hint.resourcePatterns().map(ResourcePatternHints::getIncludes)
+		addIfNotEmpty(attributes, "includes", hint.resourcePatternHints().map(ResourcePatternHints::getIncludes)
 				.flatMap(List::stream).distinct().map(this::toAttributes).toList());
-		addIfNotEmpty(attributes, "excludes", hint.resourcePatterns().map(ResourcePatternHints::getExcludes)
+		addIfNotEmpty(attributes, "excludes", hint.resourcePatternHints().map(ResourcePatternHints::getExcludes)
 				.flatMap(List::stream).distinct().map(this::toAttributes).toList());
 		return attributes;
 	}
 
-	private void handleResourceBundles(Map<String, Object> attributes, Stream<ResourceBundleHint> ressourceBundles) {
-		addIfNotEmpty(attributes, "bundles", ressourceBundles.map(this::toAttributes).toList());
+	private void handleResourceBundles(Map<String, Object> attributes, Stream<ResourceBundleHint> resourceBundles) {
+		addIfNotEmpty(attributes, "bundles", resourceBundles.map(this::toAttributes).toList());
 	}
 
 	private Map<String, Object> toAttributes(ResourceBundleHint hint) {
@@ -77,12 +74,8 @@ class ResourceHintsWriter {
 	private Map<String, Object> toAttributes(ResourcePatternHint hint) {
 		Map<String, Object> attributes = new LinkedHashMap<>();
 		handleCondition(attributes, hint);
-		attributes.put("pattern", patternToRegexp(hint.getPattern()));
+		attributes.put("pattern", hint.toRegex().toString());
 		return attributes;
-	}
-
-	private String patternToRegexp(String pattern) {
-		return Arrays.stream(pattern.split("\\*")).map(Pattern::quote).collect(Collectors.joining(".*"));
 	}
 
 	private void addIfNotEmpty(Map<String, Object> attributes, String name, @Nullable Object value) {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -143,7 +143,7 @@ public class RSocketFrameTypeMessageCondition extends AbstractMessageCondition<R
 				}
 			}
 		}
-		return  null;
+		return null;
 	}
 
 	@Override
@@ -154,7 +154,7 @@ public class RSocketFrameTypeMessageCondition extends AbstractMessageCondition<R
 
 	/**
 	 * Return a condition for matching the RSocket request interaction type with
-	 * that is selected based on the delcared request and response cardinality
+	 * that is selected based on the declared request and response cardinality
 	 * of some handler method.
 	 * <p>The table below shows the selections made:
 	 * <table>

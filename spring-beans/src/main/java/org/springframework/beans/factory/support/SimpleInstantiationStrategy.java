@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import org.springframework.util.StringUtils;
  *
  * @author Rod Johnson
  * @author Juergen Hoeller
+ * @author Stephane Nicoll
  * @since 1.1
  */
 public class SimpleInstantiationStrategy implements InstantiationStrategy {
@@ -51,6 +52,15 @@ public class SimpleInstantiationStrategy implements InstantiationStrategy {
 	@Nullable
 	public static Method getCurrentlyInvokedFactoryMethod() {
 		return currentlyInvokedFactoryMethod.get();
+	}
+
+	/**
+	 * Set the factory method currently being invoked or {@code null} to reset.
+	 * @param method the factory method currently being invoked or {@code null}
+	 * @since 6.0
+	 */
+	public static void setCurrentlyInvokedFactoryMethod(@Nullable Method method) {
+		currentlyInvokedFactoryMethod.set(method);
 	}
 
 
@@ -143,6 +153,12 @@ public class SimpleInstantiationStrategy implements InstantiationStrategy {
 			}
 		}
 		catch (IllegalArgumentException ex) {
+			if (factoryBean != null
+					&& !factoryMethod.getDeclaringClass().isAssignableFrom(factoryBean.getClass())) {
+				throw new BeanInstantiationException(factoryMethod,
+						"Illegal factory instance for factory method '" + factoryMethod.getName() + "'; " +
+						"instance: " + factoryBean.getClass().getName(), ex);
+			}
 			throw new BeanInstantiationException(factoryMethod,
 					"Illegal arguments to factory method '" + factoryMethod.getName() + "'; " +
 					"args: " + StringUtils.arrayToCommaDelimitedString(args), ex);
@@ -152,9 +168,10 @@ public class SimpleInstantiationStrategy implements InstantiationStrategy {
 					"Cannot access factory method '" + factoryMethod.getName() + "'; is it public?", ex);
 		}
 		catch (InvocationTargetException ex) {
-			String msg = "Factory method '" + factoryMethod.getName() + "' threw exception";
-			if (bd.getFactoryBeanName() != null && owner instanceof ConfigurableBeanFactory &&
-					((ConfigurableBeanFactory) owner).isCurrentlyInCreation(bd.getFactoryBeanName())) {
+			String msg = "Factory method '" + factoryMethod.getName() + "' threw exception with message: " +
+					ex.getTargetException().getMessage();
+			if (bd.getFactoryBeanName() != null && owner instanceof ConfigurableBeanFactory cbf &&
+					cbf.isCurrentlyInCreation(bd.getFactoryBeanName())) {
 				msg = "Circular reference involving containing bean '" + bd.getFactoryBeanName() + "' - consider " +
 						"declaring the factory method as static for independence from its containing instance. " + msg;
 			}

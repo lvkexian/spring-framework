@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,6 +37,7 @@ import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.http.server.reactive.observation.ServerRequestObservationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Controller;
 import org.springframework.util.ClassUtils;
@@ -119,10 +121,6 @@ public class RequestMappingInfoHandlerMappingTests {
 		ServerWebExchange exchange = MockServerWebExchange.from(get(""));
 		HandlerMethod hm = (HandlerMethod) this.handlerMapping.getHandler(exchange).block();
 		assertThat(hm.getMethod()).isEqualTo(expected);
-
-		exchange = MockServerWebExchange.from(get("/"));
-		hm = (HandlerMethod) this.handlerMapping.getHandler(exchange).block();
-		assertThat(hm.getMethod()).isEqualTo(expected);
 	}
 
 	@Test
@@ -157,7 +155,6 @@ public class RequestMappingInfoHandlerMappingTests {
 	@Test  // SPR-8462
 	public void getHandlerMediaTypeNotSupported() {
 		testHttpMediaTypeNotSupportedException("/person/1");
-		testHttpMediaTypeNotSupportedException("/person/1/");
 		testHttpMediaTypeNotSupportedException("/person/1.json");
 	}
 
@@ -175,7 +172,6 @@ public class RequestMappingInfoHandlerMappingTests {
 	@Test  // SPR-8462
 	public void getHandlerTestMediaTypeNotAcceptable() {
 		testMediaTypeNotAcceptable("/persons");
-		testMediaTypeNotAcceptable("/persons/");
 	}
 
 	@Test  // SPR-12854
@@ -263,12 +259,24 @@ public class RequestMappingInfoHandlerMappingTests {
 		assertThat(mapped).isSameAs(handlerMethod);
 	}
 
+	@Test
+	@SuppressWarnings("removal")
+	public void handleMatchBestMatchingPatternAttributeInObservationContext() {
+		RequestMappingInfo key = paths("/{path1}/2", "/**").build();
+		ServerWebExchange exchange = MockServerWebExchange.from(get("/1/2"));
+		ServerRequestObservationContext observationContext = new ServerRequestObservationContext(exchange.getRequest(), exchange.getResponse(), exchange.getAttributes());
+		exchange.getAttributes().put(ServerRequestObservationContext.CURRENT_OBSERVATION_CONTEXT_ATTRIBUTE, observationContext);
+		this.handlerMapping.handleMatch(key, handlerMethod, exchange);
+
+		assertThat(observationContext.getPathPattern()).isEqualTo("/{path1}/2");
+	}
+
 	@Test // gh-22543
 	public void handleMatchBestMatchingPatternAttributeNoPatternsDefined() {
 		ServerWebExchange exchange = MockServerWebExchange.from(get(""));
 		this.handlerMapping.handleMatch(paths().build(), handlerMethod, exchange);
 		PathPattern pattern = (PathPattern) exchange.getAttributes().get(BEST_MATCHING_PATTERN_ATTRIBUTE);
-		assertThat(pattern.getPatternString()).isEqualTo("");
+		assertThat(pattern.getPatternString()).isEmpty();
 	}
 
 	@Test
@@ -299,7 +307,7 @@ public class RequestMappingInfoHandlerMappingTests {
 		// segment is a sequence of name-value pairs.
 
 		assertThat(matrixVariables).isNotNull();
-		assertThat(matrixVariables.size()).isEqualTo(1);
+		assertThat(matrixVariables).hasSize(1);
 		assertThat(matrixVariables.getFirst("b")).isEqualTo("c");
 		assertThat(uriVariables.get("foo")).isEqualTo("a=42");
 	}
@@ -336,6 +344,17 @@ public class RequestMappingInfoHandlerMappingTests {
 				})
 				.verify();
 
+	}
+
+	@Test // gh-29611
+	public void handleNoMatchWithoutPartialMatches() throws Exception {
+		ServerWebExchange exchange = MockServerWebExchange.from(post("/non-existent"));
+
+		HandlerMethod handlerMethod = this.handlerMapping.handleNoMatch(new HashSet<>(), exchange);
+		assertThat(handlerMethod).isNull();
+
+		handlerMethod = this.handlerMapping.handleNoMatch(null, exchange);
+		assertThat(handlerMethod).isNull();
 	}
 
 

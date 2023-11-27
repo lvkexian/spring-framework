@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package org.springframework.jms.config;
 
+import io.micrometer.observation.tck.TestObservationRegistry;
 import jakarta.jms.ConnectionFactory;
 import jakarta.jms.MessageListener;
 import jakarta.jms.Session;
@@ -54,7 +55,7 @@ public class JmsListenerContainerFactoryTests {
 
 	private final MessageConverter messageConverter = new SimpleMessageConverter();
 
-	private final TransactionManager transactionManager = mock(TransactionManager.class);
+	private final TransactionManager transactionManager = mock();
 
 
 	@Test
@@ -77,10 +78,12 @@ public class JmsListenerContainerFactoryTests {
 	@Test
 	public void createJmsContainerFullConfig() {
 		DefaultJmsListenerContainerFactory factory = new DefaultJmsListenerContainerFactory();
+		TestObservationRegistry testObservationRegistry = TestObservationRegistry.create();
 		setDefaultJmsConfig(factory);
 		factory.setCacheLevel(DefaultMessageListenerContainer.CACHE_CONSUMER);
 		factory.setConcurrency("3-10");
 		factory.setMaxMessagesPerTask(5);
+		factory.setObservationRegistry(testObservationRegistry);
 
 		SimpleJmsListenerEndpoint endpoint = new SimpleJmsListenerEndpoint();
 		MessageListener messageListener = new MessageListenerAdapter();
@@ -93,6 +96,7 @@ public class JmsListenerContainerFactoryTests {
 		assertThat(container.getConcurrentConsumers()).isEqualTo(3);
 		assertThat(container.getMaxConcurrentConsumers()).isEqualTo(10);
 		assertThat(container.getMaxMessagesPerTask()).isEqualTo(5);
+		assertThat(container.getObservationRegistry()).isEqualTo(testObservationRegistry);
 
 		assertThat(container.getMessageListener()).isEqualTo(messageListener);
 		assertThat(container.getDestinationName()).isEqualTo("myQueue");

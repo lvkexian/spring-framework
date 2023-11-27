@@ -32,57 +32,69 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
  */
 class ClassNameGeneratorTests {
 
-	private final ClassNameGenerator generator = new ClassNameGenerator();
+	private static final ClassName TEST_TARGET = ClassName.get("com.example", "Test");
+
+	private final ClassNameGenerator generator = new ClassNameGenerator(TEST_TARGET);
 
 	@Test
-	void generateClassNameWhenTargetClassIsNullUsesAotPackage() {
-		ClassName generated = this.generator.generateClassName((Class<?>) null, "test");
-		assertThat(generated).hasToString("__.Test");
+	void generateClassNameWhenTargetClassIsNullUsesMainTarget() {
+		ClassName generated = this.generator.generateClassName("test", null);
+		assertThat(generated).hasToString("com.example.Test__Test");
+	}
+
+	@Test
+	void generateClassNameUseFeatureNamePrefix() {
+		ClassName generated = new ClassNameGenerator(TEST_TARGET, "One")
+				.generateClassName("test", ClassName.get(InputStream.class));
+		assertThat(generated).hasToString("java.io.InputStream__OneTest");
+	}
+
+	@Test
+	void generateClassNameWithNoTextFeatureNamePrefix() {
+		ClassName generated = new ClassNameGenerator(TEST_TARGET, "  ")
+				.generateClassName("test", ClassName.get(InputStream.class));
+		assertThat(generated).hasToString("java.io.InputStream__Test");
 	}
 
 	@Test
 	void generatedClassNameWhenFeatureIsEmptyThrowsException() {
 		assertThatIllegalArgumentException()
-				.isThrownBy(() -> this.generator.generateClassName(InputStream.class, ""))
+				.isThrownBy(() -> this.generator.generateClassName("", ClassName.get(InputStream.class)))
 				.withMessage("'featureName' must not be empty");
 	}
 
 	@Test
 	void generatedClassNameWhenFeatureIsNotAllLettersThrowsException() {
-		assertThat(this.generator.generateClassName(InputStream.class, "name!"))
+		assertThat(this.generator.generateClassName("name!", ClassName.get(InputStream.class)))
 				.hasToString("java.io.InputStream__Name");
-		assertThat(this.generator.generateClassName(InputStream.class, "1NameHere"))
+		assertThat(this.generator.generateClassName("1NameHere", ClassName.get(InputStream.class)))
 				.hasToString("java.io.InputStream__NameHere");
-		assertThat(this.generator.generateClassName(InputStream.class, "Y0pe"))
+		assertThat(this.generator.generateClassName("Y0pe", ClassName.get(InputStream.class)))
 				.hasToString("java.io.InputStream__YPe");
 	}
 
 	@Test
 	void generateClassNameWithClassWhenLowercaseFeatureNameGeneratesName() {
-		ClassName generated = this.generator.generateClassName(InputStream.class,
-				"bytes");
+		ClassName generated = this.generator.generateClassName("bytes", ClassName.get(InputStream.class));
 		assertThat(generated).hasToString("java.io.InputStream__Bytes");
 	}
 
 	@Test
 	void generateClassNameWithClassWhenInnerClassGeneratesName() {
-		ClassName generated = this.generator.generateClassName(TestBean.class, "EventListener");
+		ClassName innerBean = ClassName.get("com.example", "Test", "InnerBean");
+		ClassName generated = this.generator.generateClassName("EventListener", innerBean);
 		assertThat(generated)
-			.hasToString("org.springframework.aot.generate.ClassNameGeneratorTests_TestBean__EventListener");
+				.hasToString("com.example.Test_InnerBean__EventListener");
 	}
 
 	@Test
 	void generateClassWithClassWhenMultipleCallsGeneratesSequencedName() {
-		ClassName generated1 = this.generator.generateClassName(InputStream.class, "bytes");
-		ClassName generated2 = this.generator.generateClassName(InputStream.class, "bytes");
-		ClassName generated3 = this.generator.generateClassName(InputStream.class, "bytes");
+		ClassName generated1 = this.generator.generateClassName("bytes",ClassName.get(InputStream.class));
+		ClassName generated2 = this.generator.generateClassName("bytes", ClassName.get(InputStream.class));
+		ClassName generated3 = this.generator.generateClassName("bytes", ClassName.get(InputStream.class));
 		assertThat(generated1).hasToString("java.io.InputStream__Bytes");
 		assertThat(generated2).hasToString("java.io.InputStream__Bytes1");
 		assertThat(generated3).hasToString("java.io.InputStream__Bytes2");
-	}
-
-	static class TestBean {
-
 	}
 
 }

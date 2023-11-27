@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ final class BitsCronField extends CronField {
 	}
 
 	/**
-	 * Return a {@code BitsCronField} enabled for 0 nano seconds.
+	 * Return a {@code BitsCronField} enabled for 0 nanoseconds.
 	 */
 	public static BitsCronField zeroNanos() {
 		if (zeroNanos == null) {
@@ -75,7 +75,7 @@ final class BitsCronField extends CronField {
 	}
 
 	/**
-	 * Parse the given value into a hours {@code BitsCronField}, the third entry of a cron expression.
+	 * Parse the given value into an hours {@code BitsCronField}, the third entry of a cron expression.
 	 */
 	public static BitsCronField parseHours(String value) {
 		return BitsCronField.parseField(value, Type.HOUR);
@@ -247,7 +247,7 @@ final class BitsCronField extends CronField {
 	}
 
 	private void clearBit(int index) {
-		this.bits &=  ~(1L << index);
+		this.bits &= ~(1L << index);
 	}
 
 	@Override
@@ -256,7 +256,7 @@ final class BitsCronField extends CronField {
 	}
 
 	@Override
-	public boolean equals(Object o) {
+	public boolean equals(@Nullable Object o) {
 		if (this == o) {
 			return true;
 		}

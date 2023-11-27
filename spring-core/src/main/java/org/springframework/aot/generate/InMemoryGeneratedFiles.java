@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,8 +45,7 @@ public class InMemoryGeneratedFiles implements GeneratedFiles {
 		Assert.notNull(content, "'content' must not be null");
 		Map<String, InputStreamSource> paths = this.files.computeIfAbsent(kind,
 				key -> new LinkedHashMap<>());
-		Assert.state(!paths.containsKey(path),
-				() -> "Path '" + path + "' already in use");
+		Assert.state(!paths.containsKey(path), () -> "Path '" + path + "' already in use");
 		paths.put(path, content);
 	}
 
@@ -57,8 +56,7 @@ public class InMemoryGeneratedFiles implements GeneratedFiles {
 	 */
 	public Map<String, InputStreamSource> getGeneratedFiles(Kind kind) {
 		Assert.notNull(kind, "'kind' must not be null");
-		return Collections
-				.unmodifiableMap(this.files.getOrDefault(kind, Collections.emptyMap()));
+		return Collections.unmodifiableMap(this.files.getOrDefault(kind, Collections.emptyMap()));
 	}
 
 	/**
@@ -72,8 +70,7 @@ public class InMemoryGeneratedFiles implements GeneratedFiles {
 	public String getGeneratedFileContent(Kind kind, String path) throws IOException {
 		InputStreamSource source = getGeneratedFile(kind, path);
 		if (source != null) {
-			return new String(source.getInputStream().readAllBytes(),
-					StandardCharsets.UTF_8);
+			return new String(source.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
 		}
 		return null;
 	}
@@ -89,7 +86,7 @@ public class InMemoryGeneratedFiles implements GeneratedFiles {
 		Assert.notNull(kind, "'kind' must not be null");
 		Assert.hasLength(path, "'path' must not be empty");
 		Map<String, InputStreamSource> paths = this.files.get(kind);
-		return (paths != null) ? paths.get(path) : null;
+		return (paths != null ? paths.get(path) : null);
 	}
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -65,7 +65,7 @@ public class PathResourceResolver extends AbstractResourceResolver {
 
 
 	/**
-	 * By default when a Resource is found, the path of the resolved resource is
+	 * By default, when a Resource is found, the path of the resolved resource is
 	 * compared to ensure it's under the input location where it was found.
 	 * However sometimes that may not be the case, e.g. when
 	 * {@link org.springframework.web.servlet.resource.CssLinkResourceTransformer}
@@ -133,6 +133,7 @@ public class PathResourceResolver extends AbstractResourceResolver {
 
 
 	@Override
+	@Nullable
 	protected Resource resolveResourceInternal(@Nullable HttpServletRequest request, String requestPath,
 			List<? extends Resource> locations, ResourceResolverChain chain) {
 
@@ -140,6 +141,7 @@ public class PathResourceResolver extends AbstractResourceResolver {
 	}
 
 	@Override
+	@Nullable
 	protected String resolveUrlPathInternal(String resourcePath, List<? extends Resource> locations,
 			ResourceResolverChain chain) {
 
@@ -193,8 +195,8 @@ public class PathResourceResolver extends AbstractResourceResolver {
 				Resource[] allowed = getAllowedLocations();
 				logger.warn(LogFormatUtils.formatValue(
 						"Resource path \"" + resourcePath + "\" was successfully resolved " +
-								"but resource \"" + resource.getURL() + "\" is neither under " +
-								"the current location \"" + location.getURL() + "\" nor under any of " +
+								"but resource \"" + resource + "\" is neither under " +
+								"the current location \"" + location + "\" nor under any of " +
 								"the allowed locations " + (allowed != null ? Arrays.asList(allowed) : "[]"), -1, true));
 			}
 		}
@@ -203,12 +205,12 @@ public class PathResourceResolver extends AbstractResourceResolver {
 
 	/**
 	 * Perform additional checks on a resolved resource beyond checking whether the
-	 * resources exists and is readable. The default implementation also verifies
+	 * resource exists and is readable. The default implementation also verifies
 	 * the resource is either under the location relative to which it was found or
-	 * is under one of the {@link #setAllowedLocations allowed locations}.
+	 * is under one of the {@linkplain #setAllowedLocations allowed locations}.
 	 * @param resource the resource to check
 	 * @param location the location relative to which the resource was found
-	 * @return "true" if resource is in a valid location, "false" otherwise.
+	 * @return "true" if resource is in a valid location, "false" otherwise
 	 * @since 4.1.2
 	 */
 	protected boolean checkResource(Resource resource, Resource location) throws IOException {

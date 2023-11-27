@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ public class RestClientResponseException extends RestClientException {
 	private final String responseCharset;
 
 	@Nullable
-	private Function<ResolvableType, ?> bodyConvertFunction;
+	private transient Function<ResolvableType, ?> bodyConvertFunction;
 
 
 	/**
@@ -106,7 +106,7 @@ public class RestClientResponseException extends RestClientException {
 	 * Return the raw HTTP status code value.
 	 * @deprecated as of 6.0, in favor of {@link #getStatusCode()}
 	 */
-	@Deprecated
+	@Deprecated(since = "6.0")
 	public int getRawStatusCode() {
 		return this.statusCode.value();
 	}

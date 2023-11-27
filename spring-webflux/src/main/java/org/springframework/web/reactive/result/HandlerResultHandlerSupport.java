@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package org.springframework.web.reactive.result;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -49,7 +48,7 @@ import org.springframework.web.server.ServerWebExchange;
 public abstract class HandlerResultHandlerSupport implements Ordered {
 
 	private static final List<MediaType> ALL_APPLICATION_MEDIA_TYPES =
-			Arrays.asList(MediaType.ALL, new MediaType("application"));
+			List.of(MediaType.ALL, new MediaType("application"));
 
 
 	protected final Log logger = LogFactory.getLog(getClass());
@@ -88,7 +87,7 @@ public abstract class HandlerResultHandlerSupport implements Ordered {
 	/**
 	 * Set the order for this result handler relative to others.
 	 * <p>By default set to {@link Ordered#LOWEST_PRECEDENCE}, however see
-	 * Javadoc of sub-classes which may change this default.
+	 * Javadoc of subclasses which may change this default.
 	 * @param order the order
 	 */
 	public void setOrder(int order) {

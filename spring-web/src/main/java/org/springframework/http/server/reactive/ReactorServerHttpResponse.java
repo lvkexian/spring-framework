@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package org.springframework.http.server.reactive;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Objects;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelId;
@@ -37,7 +38,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ZeroCopyHttpOutputMessage;
-import org.springframework.util.Assert;
+import org.springframework.http.support.Netty4HeadersAdapter;
 
 /**
  * Adapt {@link ServerHttpResponse} to the {@link HttpServerResponse}.
@@ -55,8 +56,8 @@ class ReactorServerHttpResponse extends AbstractServerHttpResponse implements Ze
 
 
 	public ReactorServerHttpResponse(HttpServerResponse response, DataBufferFactory bufferFactory) {
-		super(bufferFactory, new HttpHeaders(new NettyHeadersAdapter(response.responseHeaders())));
-		Assert.notNull(response, "HttpServerResponse must not be null");
+		super(bufferFactory, new HttpHeaders(new Netty4HeadersAdapter(Objects.requireNonNull(response,
+				"HttpServerResponse must not be null").responseHeaders())));
 		this.response = response;
 	}
 
@@ -127,30 +128,16 @@ class ReactorServerHttpResponse extends AbstractServerHttpResponse implements Ze
 	@Override
 	protected void touchDataBuffer(DataBuffer buffer) {
 		if (logger.isDebugEnabled()) {
-			if (ReactorServerHttpRequest.reactorNettyRequestChannelOperationsIdPresent) {
-				if (ChannelOperationsIdHelper.touch(buffer, this.response)) {
-					return;
-				}
+			if (this.response instanceof ChannelOperationsId operationsId) {
+				DataBufferUtils.touch(buffer, "Channel id: " + operationsId.asLongText());
 			}
-			this.response.withConnection(connection -> {
-				ChannelId id = connection.channel().id();
-				DataBufferUtils.touch(buffer, "Channel id: " + id.asShortText());
-			});
+			else {
+				this.response.withConnection(connection -> {
+					ChannelId id = connection.channel().id();
+					DataBufferUtils.touch(buffer, "Channel id: " + id.asShortText());
+				});
+			}
 		}
 	}
-
-
-	private static class ChannelOperationsIdHelper {
-
-		public static boolean touch(DataBuffer dataBuffer, HttpServerResponse response) {
-			if (response instanceof reactor.netty.ChannelOperationsId) {
-				String id = ((ChannelOperationsId) response).asLongText();
-				DataBufferUtils.touch(dataBuffer, "Channel id: " + id);
-				return true;
-			}
-			return false;
-		}
-	}
-
 
 }

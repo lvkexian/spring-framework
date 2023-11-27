@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2020 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -67,6 +67,25 @@ public class EnableTransactionManagementTests {
 		Map<?,?> services = ctx.getBeansWithAnnotation(Service.class);
 		assertThat(services.containsKey("testBean")).as("Stereotype annotation not visible").isTrue();
 		ctx.close();
+	}
+
+	@Test  // gh-31238
+	public void cglibProxyClassIsCachedAcrossApplicationContexts() {
+		ConfigurableApplicationContext ctx;
+
+		// Round #1
+		ctx = new AnnotationConfigApplicationContext(EnableTxConfig.class, TxManagerConfig.class);
+		TransactionalTestBean bean1 = ctx.getBean(TransactionalTestBean.class);
+		assertThat(AopUtils.isCglibProxy(bean1)).as("testBean #1 is not a CGLIB proxy").isTrue();
+		ctx.close();
+
+		// Round #2
+		ctx = new AnnotationConfigApplicationContext(EnableTxConfig.class, TxManagerConfig.class);
+		TransactionalTestBean bean2 = ctx.getBean(TransactionalTestBean.class);
+		assertThat(AopUtils.isCglibProxy(bean2)).as("testBean #2 is not a CGLIB proxy").isTrue();
+		ctx.close();
+
+		assertThat(bean1.getClass()).isSameAs(bean2.getClass());
 	}
 
 	@Test
@@ -216,7 +235,7 @@ public class EnableTransactionManagementTests {
 	public void transactionalEventListenerRegisteredProperly() {
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(EnableTxConfig.class);
 		assertThat(ctx.containsBean(TransactionManagementConfigUtils.TRANSACTIONAL_EVENT_LISTENER_FACTORY_BEAN_NAME)).isTrue();
-		assertThat(ctx.getBeansOfType(TransactionalEventListenerFactory.class).size()).isEqualTo(1);
+		assertThat(ctx.getBeansOfType(TransactionalEventListenerFactory.class)).hasSize(1);
 		ctx.close();
 	}
 

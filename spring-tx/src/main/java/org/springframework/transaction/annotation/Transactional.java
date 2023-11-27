@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+import org.springframework.aot.hint.annotation.Reflective;
 import org.springframework.core.annotation.AliasFor;
 import org.springframework.transaction.TransactionDefinition;
 
@@ -34,7 +35,7 @@ import org.springframework.transaction.TransactionDefinition;
  * apply to ancestor classes up the class hierarchy; inherited methods need to be
  * locally redeclared in order to participate in a subclass-level annotation. For
  * details on method visibility constraints, consult the
- * <a href="https://docs.spring.io/spring-framework/docs/current/reference/html/data-access.html#transaction">Transaction Management</a>
+ * <a href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html#transaction-declarative-annotations-method-visibility">Transaction Management</a>
  * section of the reference manual.
  *
  * <p>This annotation is generally directly comparable to Spring's
@@ -117,6 +118,7 @@ import org.springframework.transaction.TransactionDefinition;
 @Retention(RetentionPolicy.RUNTIME)
 @Inherited
 @Documented
+@Reflective
 public @interface Transactional {
 
 	/**

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import org.springframework.http.support.JettyHeadersAdapter;
+import org.springframework.http.support.Netty4HeadersAdapter;
+import org.springframework.http.support.Netty5HeadersAdapter;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.LinkedCaseInsensitiveMap;
 import org.springframework.util.MultiValueMap;
@@ -64,7 +67,7 @@ class HeadersAdaptersTests {
 	void sizeWithMultipleValuesForHeaderShouldCountHeaders(MultiValueMap<String, String> headers) {
 		headers.add("TestHeader", "first");
 		headers.add("TestHeader", "second");
-		assertThat(headers.size()).isEqualTo(1);
+		assertThat(headers).hasSize(1);
 	}
 
 	@ParameterizedHeadersTest
@@ -72,7 +75,7 @@ class HeadersAdaptersTests {
 		headers.add("TestHeader", "first");
 		headers.add("OtherHeader", "test");
 		headers.add("TestHeader", "second");
-		assertThat(headers.keySet().size()).isEqualTo(2);
+		assertThat(headers.keySet()).hasSize(2);
 	}
 
 	@ParameterizedHeadersTest
@@ -94,7 +97,7 @@ class HeadersAdaptersTests {
 		headers.add("TestHeader", "first");
 		headers.put("TestHeader", Arrays.asList("override"));
 		assertThat(headers.getFirst("TestHeader")).isEqualTo("override");
-		assertThat(headers.get("TestHeader").size()).isEqualTo(1);
+		assertThat(headers.get("TestHeader")).hasSize(1);
 	}
 
 	@ParameterizedHeadersTest
@@ -110,7 +113,7 @@ class HeadersAdaptersTests {
 		headers.add("TestHeader", "first");
 		assertThat(headers.keySet()).hasSize(1);
 		headers.keySet().removeIf("TestHeader"::equals);
-		assertThat(headers.keySet()).hasSize(0);
+		assertThat(headers.keySet()).isEmpty();
 	}
 
 	@ParameterizedHeadersTest
@@ -133,11 +136,12 @@ class HeadersAdaptersTests {
 
 	static Stream<Arguments> headers() {
 		return Stream.of(
-			arguments(named("Map", CollectionUtils.toMultiValueMap(new LinkedCaseInsensitiveMap<>(8, Locale.ENGLISH)))),
-			arguments(named("Netty", new NettyHeadersAdapter(new DefaultHttpHeaders()))),
-			arguments(named("Tomcat", new TomcatHeadersAdapter(new MimeHeaders()))),
-			arguments(named("Undertow", new UndertowHeadersAdapter(new HeaderMap()))),
-			arguments(named("Jetty", new JettyHeadersAdapter(HttpFields.build())))
+				arguments(named("Map", CollectionUtils.toMultiValueMap(new LinkedCaseInsensitiveMap<>(8, Locale.ENGLISH)))),
+				arguments(named("Netty", new Netty4HeadersAdapter(new DefaultHttpHeaders()))),
+				arguments(named("Netty", new Netty5HeadersAdapter(io.netty5.handler.codec.http.headers.HttpHeaders.newHeaders()))),
+				arguments(named("Tomcat", new TomcatHeadersAdapter(new MimeHeaders()))),
+				arguments(named("Undertow", new UndertowHeadersAdapter(new HeaderMap()))),
+				arguments(named("Jetty", new JettyHeadersAdapter(HttpFields.build())))
 		);
 	}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,13 +56,13 @@ import static org.springframework.test.context.NestedTestConfiguration.Enclosing
  */
 class BootstrapUtilsTests {
 
-	private final CacheAwareContextLoaderDelegate delegate = mock(CacheAwareContextLoaderDelegate.class);
+	private final CacheAwareContextLoaderDelegate delegate = mock();
 
 	@Test
 	void resolveTestContextBootstrapperWithEmptyBootstrapWithAnnotation() {
 		BootstrapContext bootstrapContext = BootstrapTestUtils.buildBootstrapContext(EmptyBootstrapWithAnnotationClass.class, delegate);
-		assertThatIllegalStateException().isThrownBy(() ->
-				resolveTestContextBootstrapper(bootstrapContext))
+		assertThatIllegalStateException()
+			.isThrownBy(() -> resolveTestContextBootstrapper(bootstrapContext))
 			.withMessageContaining("Specify @BootstrapWith's 'value' attribute");
 	}
 
@@ -70,11 +70,11 @@ class BootstrapUtilsTests {
 	void resolveTestContextBootstrapperWithDoubleMetaBootstrapWithAnnotations() {
 		BootstrapContext bootstrapContext = BootstrapTestUtils.buildBootstrapContext(
 			DoubleMetaAnnotatedBootstrapWithAnnotationClass.class, delegate);
-		assertThatIllegalStateException().isThrownBy(() ->
-				resolveTestContextBootstrapper(bootstrapContext))
+		assertThatIllegalStateException()
+			.isThrownBy(() -> resolveTestContextBootstrapper(bootstrapContext))
 			.withMessageContaining("Configuration error: found multiple declarations of @BootstrapWith")
-			.withMessageContaining(FooBootstrapper.class.getCanonicalName())
-			.withMessageContaining(BarBootstrapper.class.getCanonicalName());
+			.withMessageContaining(FooBootstrapper.class.getSimpleName())
+			.withMessageContaining(BarBootstrapper.class.getSimpleName());
 	}
 
 	@Test
@@ -144,8 +144,8 @@ class BootstrapUtilsTests {
 	private void assertBootstrapper(Class<?> testClass, Class<?> expectedBootstrapper) {
 		BootstrapContext bootstrapContext = BootstrapTestUtils.buildBootstrapContext(testClass, delegate);
 		TestContextBootstrapper bootstrapper = resolveTestContextBootstrapper(bootstrapContext);
-		assertThat(bootstrapper).isNotNull();
 		assertThat(bootstrapper.getClass()).isEqualTo(expectedBootstrapper);
+		assertThat(bootstrapper).isExactlyInstanceOf(expectedBootstrapper);
 	}
 
 	// -------------------------------------------------------------------

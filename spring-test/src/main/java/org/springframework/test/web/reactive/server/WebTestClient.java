@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ import org.springframework.lang.Nullable;
 import org.springframework.util.MultiValueMap;
 import org.springframework.validation.Validator;
 import org.springframework.web.reactive.accept.RequestedContentTypeResolverBuilder;
+import org.springframework.web.reactive.config.BlockingExecutionConfigurer;
 import org.springframework.web.reactive.config.CorsRegistry;
 import org.springframework.web.reactive.config.PathMatchConfigurer;
 import org.springframework.web.reactive.config.ViewResolverRegistry;
@@ -180,7 +181,7 @@ public interface WebTestClient {
 	 * There are builder methods to customize the Java config. The resulting
 	 * WebFlux application will be tested without an HTTP server using a mock
 	 * request and response.
-	 * @param controllers one or more controller instances to tests
+	 * @param controllers one or more controller instances to test
 	 * (specified {@code Class} will be turned into instance)
 	 * @return chained API to customize server and client config; use
 	 * {@link MockServerSpec#configureClient()} to transition to client config
@@ -203,7 +204,7 @@ public interface WebTestClient {
 	}
 
 	/**
-	 * Use this option to setup a server from the Spring configuration of your
+	 * Use this option to set up a server from the Spring configuration of your
 	 * application, or some subset of it. Internally the provided configuration
 	 * is passed to {@code WebHttpHandlerBuilder} to set up the request
 	 * processing chain. The resulting WebFlux application will be tested
@@ -353,6 +354,13 @@ public interface WebTestClient {
 		 * @see WebFluxConfigurer#configureViewResolvers
 		 */
 		ControllerSpec viewResolvers(Consumer<ViewResolverRegistry> consumer);
+
+		/**
+		 * Configure blocking execution options.
+		 * @since 6.1
+		 * @see WebFluxConfigurer#configureBlockingExecution
+		 */
+		ControllerSpec blockingExecution(Consumer<BlockingExecutionConfigurer> consumer);
 	}
 
 
@@ -503,6 +511,18 @@ public interface WebTestClient {
 		 * @param timeout the response timeout value
 		 */
 		Builder responseTimeout(Duration timeout);
+
+		/**
+		 * Set the {@link ClientHttpConnector} to use.
+		 * <p>By default, this is initialized and set internally. However, the
+		 * connector may also be prepared externally and passed via
+		 * {@link WebTestClient#bindToServer(ClientHttpConnector)} such as for
+		 * {@code MockMvcWebTestClient} tests, and in that case you can use this
+		 * from {@link #mutateWith(WebTestClientConfigurer)} to replace it.
+		 * @param connector the connector to use
+		 * @since 6.1
+		 */
+		Builder clientConnector(ClientHttpConnector connector);
 
 		/**
 		 * Apply the given configurer to this builder instance.
@@ -796,7 +816,7 @@ public interface WebTestClient {
 		 * <p>If a single {@link Error} or {@link RuntimeException} is thrown,
 		 * it will be rethrown.
 		 * <p>If multiple exceptions are thrown, this method will throw an
-		 * {@link AssertionError} whose error message is a summary of all of the
+		 * {@link AssertionError} whose error message is a summary of all the
 		 * exceptions. In addition, each exception will be added as a
 		 * {@linkplain Throwable#addSuppressed(Throwable) suppressed exception} to
 		 * the {@code AssertionError}.
