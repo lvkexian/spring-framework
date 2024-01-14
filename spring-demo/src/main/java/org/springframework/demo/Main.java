@@ -4,6 +4,8 @@ import org.springframework.beans.factory.BeanFactory;
 import org.springframework.context.support.ClassPathXmlApplicationContext;
 import org.springframework.demo.domain.MyTestBean;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * className ${NAME}
  * description TODO 类描述
@@ -18,5 +20,10 @@ public class Main {
 		BeanFactory bf = new ClassPathXmlApplicationContext("beanFactoryTest.xml");
 		MyTestBean bean = (MyTestBean) bf.getBean("myTestBean");
 		System.out.println(bean.getTestStr());
+
+		CompletableFuture<String> stringCompletableFuture = CompletableFuture.supplyAsync(() -> {
+			String a = "result";
+			return a;
+		});
 	}
 }
