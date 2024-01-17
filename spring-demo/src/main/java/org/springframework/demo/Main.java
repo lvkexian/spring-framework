@@ -21,9 +21,9 @@ public class Main {
 		MyTestBean bean = (MyTestBean) bf.getBean("myTestBean");
 		System.out.println(bean.getTestStr());
 
-		CompletableFuture<String> stringCompletableFuture = CompletableFuture.supplyAsync(() -> {
-			String a = "result";
-			return a;
-		});
+//		CompletableFuture<String> stringCompletableFuture = CompletableFuture.supplyAsync(() -> {
+//			String a = "result";
+//			return a;
+//		});
 	}
 }
