@@ -18,9 +18,9 @@ import java.util.concurrent.CompletableFuture;
 public class Main {
 
 	public static void main(String[] args) {
-//		BeanFactory bf = new ClassPathXmlApplicationContext("beanFactoryTest.xml");
-//		MyTestBean bean = (MyTestBean) bf.getBean("myTestBean");
-//		System.out.println(bean.getTestStr());
+		BeanFactory bf = new ClassPathXmlApplicationContext("beanFactoryTest.xml");
+		MyTestBean bean = (MyTestBean) bf.getBean("myTestBean");
+		System.out.println(bean.getTestStr());
 
 		AnnotationConfigApplicationContext ac = new AnnotationConfigApplicationContext("org.springframework.demo");
 //		ac.register(MyTestBean.class);
